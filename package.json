@@ -1,0 +1,42 @@
+{
+	"name": "wots-signage",
+	"version": "0.2.0",
+	"private": true,
+	"description": "Digital signage plugin for Word on the Street Books",
+	"scripts": {
+		"start": "wp-scripts start",
+		"build": "wp-scripts build",
+		"lint:js": "wp-scripts lint-js src",
+		"format": "wp-scripts format src",
+		"plugin-zip": "npm run build && wp-scripts plugin-zip",
+		"env:start": "wp-env start",
+		"env:start:debug": "wp-env start --xdebug",
+		"env:stop": "wp-env stop",
+		"env:reset": "wp-env clean all",
+		"wp": "wp-env run cli wp",
+		"composer": "wp-env run cli --env-cwd=wp-content/plugins/wots-signage composer"
+	},
+	"files": [
+		"wots-signage.php",
+		"includes",
+		"build",
+		"vendor",
+		"readme.txt"
+	],
+	"devDependencies": {
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@wordpress/components": "^41.0.0",
+		"@wordpress/element": "^8.8.0",
+		"@wordpress/env": "^11.16.0",
+		"@wordpress/scripts": "^36.0.0",
+		"typescript": "^6.0.3"
+	},
+	"dependencies": {
+		"@dnd-kit/core": "^6.3.1",
+		"@dnd-kit/sortable": "^10.0.0",
+		"@dnd-kit/utilities": "^3.2.2",
+		"@wordpress/api-fetch": "^7.56.0",
+		"qrcode-generator": "^2.0.4"
+	}
+}

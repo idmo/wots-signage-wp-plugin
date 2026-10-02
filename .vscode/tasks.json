@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "WordPress: start (with Xdebug)",
+			"type": "npm",
+			"script": "env:start:debug",
+			"problemMatcher": []
+		},
+		{
+			"label": "WordPress: stop",
+			"type": "npm",
+			"script": "env:stop",
+			"problemMatcher": []
+		},
+		{
+			"label": "Build: watch",
+			"type": "npm",
+			"script": "start",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": { "kind": "build", "isDefault": true }
+		}
+	]
+}

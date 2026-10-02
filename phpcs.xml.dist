@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<ruleset name="WOTS Signage">
+	<file>wots-signage.php</file>
+	<file>includes</file>
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<config name="minimum_wp_version" value="6.5"/>
+	<config name="testVersion" value="8.3-"/>
+	<rule ref="WordPress">
+		<!-- PSR-4 class file names (Plugin.php) instead of class-plugin.php -->
+		<exclude name="WordPress.Files.FileName"/>
+		<!-- Typed signatures document params/returns; don't require a docblock on every method. -->
+		<exclude name="Squiz.Commenting.FunctionComment"/>
+		<exclude name="Squiz.Commenting.FileComment"/>
+		<exclude name="Squiz.Commenting.ClassComment"/>
+		<exclude name="Squiz.Commenting.VariableComment"/>
+		<exclude name="Squiz.Commenting.InlineComment.InvalidEndChar"/>
+		<exclude name="Generic.Commenting.DocComment"/>
+		<!-- Short array syntax-only arrays read better one-per-line only when long. -->
+		<exclude name="WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound"/>
+	</rule>
+</ruleset>

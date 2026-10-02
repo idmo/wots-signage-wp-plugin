@@ -1,0 +1,25 @@
+{
+	"intelephense.stubs": [
+		"Core", "date", "json", "pcre", "SPL", "standard", "mbstring", "curl", "hash", "filter", "wordpress"
+	],
+	"intelephense.environment.phpVersion": "8.3.0",
+	"intelephense.environment.includePaths": [ "vendor/php-stubs/wordpress-stubs" ],
+	"phpcs.standard": "phpcs.xml.dist",
+	"phpcs.executablePath": "vendor/bin/phpcs",
+	"[php]": {
+		"editor.insertSpaces": false,
+		"editor.tabSize": 4
+	},
+	"[typescriptreact][typescript][javascript][css]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"prettier.prettierPath": "node_modules/prettier",
+	"files.exclude": {
+		"node_modules": true
+	},
+	"search.exclude": {
+		"build": true,
+		"vendor": true
+	}
+}

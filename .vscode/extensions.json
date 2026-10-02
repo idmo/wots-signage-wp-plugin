@@ -1,0 +1,10 @@
+{
+	"recommendations": [
+		"bmewburn.vscode-intelephense-client",
+		"xdebug.php-debug",
+		"shevaua.phpcs",
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"editorconfig.editorconfig"
+	]
+}

@@ -1,0 +1,193 @@
+# WOTS Signage (WordPress plugin)
+
+Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` for the full spec.
+
+## Status: Phase 2 (parity with the Next.js build)
+
+**Blocks:** image, video, and dynamic blocks, with start/end dates, fit modes, durations, categories, and archiving. Status (active / scheduled / expired) is computed live in the site's timezone, so no cron job is needed.
+
+**Dynamic blocks** read WordPress directly:
+- **Upcoming Events** (The Events Calendar).
+- **Community Board**: Pods `bulletin_board_item` posts that are published, `approved`, and inside their `start_date`/`end_date` window. A posting drops off the moment its end time passes.
+- **Featured Readers**: readers whose `featured_month_year` matches this month (or a pinned month), each with their published recommendations. Book title, cover, and link come live from WooCommerce, and the author comes from `book_author`. A reader's books play back to back.
+- **Carousel** shows one item per slide; **List** puts every item on one slide (Featured Readers lists each reader once, with their books under them).
+- Each block has its own background image, panel color and opacity, and title/body/meta colors. The built-in layouts match the Next.js player.
+
+**Templates tab:** drag a data source's elements into one of three layouts, set size, alignment, and image fit, and see a live preview built from a real event, posting, or book. A block uses its own template, otherwise its category's default template, otherwise the built-in layout.
+
+**Shows:** several shows; New, Rename, Duplicate, Delete, and **Go live**. The TV switches at its next check.
+
+**Player** at `/signage/player/?key=…`:
+- Transitions between blocks (cut, crossfade, slide, zoom). Within a carousel the background stays put and only the content animates (fade, slide up, zoom). Both are set in Settings and can be changed per block.
+- Checks a tiny version endpoint every poll interval (20 s by default) and downloads the playlist only when something changed. Changes apply at the next slide.
+- **Offline mode:** a service worker at `/signage/sw.js` keeps the player page, the last playlist, and every image and video in the show. The player keeps looping through Wi-Fi or site outages, and starts up offline after a power cut. A small amber dot appears bottom-right while it can't reach the site. Media no longer in the show is evicted.
+- Reloads itself after a plugin update.
+
+**Import / Export tab:** export one show or everything as a zip with a manifest and media (never the player key). On import, nothing changes until you confirm. Images and videos already in the library are matched by file hash and reused. For each name that already exists you choose **Keep mine**, **Replace mine**, or **Import as a copy**. Imported shows aren't put live.
+
+**Settings:** player key (copy / rotate), poll interval, default durations, brand color, default transition and content animation. Categories can set a default duration and a default template.
+
+Not yet (Phase 3): heartbeat alerting through n8n, auto-fill ordering pools, scheduled show switching, more data sources, multiple displays, the Next.js importer.
+
+### Field names
+
+The data sources use the slugs on the live site. If a Pods field is ever renamed, change it with a filter rather than editing the plugin:
+
+```php
+add_filter( 'wots_signage_featured_readers_fields', function ( $f ) {
+	$f['rec_author'] = array( 'book_author' );
+	return $f;
+} );
+// Also: wots_signage_community_board_fields, wots_signage_data_sources (add a source).
+```
+
+## One-time setup (Mac)
+
+You need three things installed (the plugin targets **PHP 8.3+** to match Pressable; wp-env runs PHP 8.3 in Docker, so there's no PHP to install):
+
+1. **Docker Desktop** (already on your machine from the Next.js build) — must be running.
+2. **Node.js 20+** — `brew install node` if you don't have it.
+3. **Composer** — `brew install composer`.
+
+Then, in Terminal:
+
+```bash
+cd ~/path/to/wots-signage
+npm install
+composer install
+npm run env:start
+```
+
+The first `env:start` takes a few minutes: it downloads WordPress, The Events Calendar, Pods, and WooCommerce into Docker containers.
+
+**Pods and The Events Calendar:** The Events Calendar is listed before Pods in `.wp-env.json` on purpose. Switching The Events Calendar on while Pods is already active crashes, because Pods defines a stand-in `tribe()` function. If you ever see that crash locally, run `npm run wp -- plugin activate the-events-calendar.latest-stable --skip-plugins=pods.latest-stable` once.
+
+When it finishes:
+
+| What | Where |
+|---|---|
+| Local site | http://localhost:8888 |
+| wp-admin | http://localhost:8888/wp-admin — user `admin`, password `password` |
+| Signage admin | wp-admin → **Signage** |
+| Player | wp-admin → Signage → **Settings** → copy the Player URL |
+
+Locally, The Events Calendar has no events yet. Add a couple under **Events** (with featured images) to see event slides.
+
+WooCommerce shows its setup wizard on first login; you can skip it.
+
+## Daily workflow in VS Code
+
+1. Open the `wots-signage` folder in VS Code (File → Open Folder). Accept the prompt to install the recommended extensions.
+2. **Terminal → Run Build Task** (⇧⌘B) starts `npm start`, which rebuilds the admin and player bundles on every save.
+3. Start WordPress with **Terminal → Run Task → WordPress: start (with Xdebug)**, or `npm run env:start` if you don't need the debugger.
+4. Edit PHP in `includes/` and React/TypeScript in `src/` — refresh the browser to see changes. The plugin folder is mounted live into WordPress, so there's no copy step.
+5. When you're done: `npm run env:stop`. Your local WordPress data is kept between sessions.
+
+### Debugging PHP
+
+Start WordPress with Xdebug (step 3 above), set a breakpoint in any PHP file, then press **F5** in VS Code ("Listen for Xdebug (wp-env)") and load the page.
+
+PHP errors are logged inside the container. To read them:
+
+```bash
+npm run wp -- eval 'echo file_get_contents(WP_CONTENT_DIR."/debug.log");'
+```
+
+## Useful commands
+
+| Command | What it does |
+|---|---|
+| `npm start` | Watch-build admin + player bundles |
+| `npm run build` | Production build |
+| `npm run env:start` / `env:stop` | Start/stop local WordPress |
+| `npm run env:reset` | Wipe the local database and start fresh |
+| `npm run wp -- <command>` | Run WP-CLI, e.g. `npm run wp -- plugin list` |
+| `composer lint` | WordPress PHP coding standards check |
+| `npm run lint:js` | JS/TS lint |
+| `npm run plugin-zip` | Build an installable `wots-signage.zip` for Pressable |
+
+## Getting realistic content locally
+
+The plugin reads your Pods types (`reader`, `recommendation`, `bulletin_board_item`), so local WordPress needs the same Pods setup:
+
+1. **Pods structure:** on the live site, Pods Admin → Migrate: Packages → export. Locally, import the package.
+2. **Content:** on the live site, Tools → Export (Readers, Recommendations, Community Board, Events, Products). Locally, Tools → Import → WordPress. Or ask Pressable for a database backup and restore it into wp-env if you want an exact copy.
+
+## Project layout
+
+```
+wots-signage.php        Plugin bootstrap + autoloader
+includes/               PHP (namespace WOTS\Signage, one class per file)
+  Plugin.php            Wires hooks together
+  PostTypes.php         Blocks, shows, templates, categories + their meta
+  Schedule.php          Active / scheduled / expired, in the site timezone
+  Resolver.php          Live show -> eligible blocks -> playlist items
+  Version.php           Playlist version token + what invalidates it
+  Sequences.php         Live show and its ordered items
+  Blocks.php            Block summaries for the admin library
+  Media.php             Attachment helpers, signage_169 image size
+  Settings.php          Poll interval, default durations, brand color
+  DataSources/          Data_Source interface, Registry, Events, Community_Board, Featured_Readers
+  Templates.php         Template Builder storage and resolution
+  Import_Export.php     Zip export/import with media hash matching
+  Rest/                 Player_Controller (key auth), Admin_Controller
+  Player_Route.php      /signage/player page and /signage/sw.js
+  Admin_Menu.php        Signage menu, Settings page, category fields
+src/admin/              React admin (Shows, Blocks, Templates, Preview, Import/Export)
+src/player/             Standalone kiosk player
+src/shared/             Renderer shared by the player and the Template Builder preview
+src/sw/                 Service worker for offline playback
+bin/check-cache.sh      Pressable cache-bypass check
+bin/kiosk/              Shop Mac setup: Chrome kiosk at login (install/start/uninstall)
+build/                  Compiled JS/CSS (generated — not committed)
+.wp-env.json            Local WordPress definition
+.vscode/                Editor settings, debugger, tasks
+```
+
+QR codes are drawn in the browser (`qrcode-generator`), not in PHP as the PRD's `Qr.php` describes. They work offline and in the admin preview, and there's no Composer dependency to ship.
+
+## Checking Pressable's cache (Phase 1 spike)
+
+After installing the plugin on the Pressable **staging** site, run:
+
+```bash
+bin/check-cache.sh https://<staging-site> <player-key>
+```
+
+It requests the player page and the version/playlist endpoints twice each and fails if any response lacks `Cache-Control: no-store` or comes back as a cache hit. The plugin also calls Pressable's `batcache_cancel()` on those requests, and the player adds a unique query string to each poll, so a pass is expected. If it fails, ask Pressable support to exclude `/signage/` and `/wp-json/wots-signage/` from caching.
+
+## Setting up the shop Mac (kiosk)
+
+`bin/kiosk/` turns a Mac into a signage screen: Google Chrome in kiosk mode (no address bar, tabs, or toolbar), started at every login, and kept awake.
+
+1. Install **Google Chrome** (not Chromium, which can't play MP4 video).
+2. Copy the Player URL from wp-admin → Signage → **Settings**.
+3. In Terminal, from this folder:
+
+   ```bash
+   bin/kiosk/install.sh "https://www.wordonthestreetbooks.com/signage/player/?key=YOUR-KEY"
+   ```
+
+The player opens full screen right away, and again at every login.
+
+| To… | Do this |
+|---|---|
+| Quit the player | **⌘Q**. It stays closed until the next login (a crash relaunches it by itself). |
+| Open it again | `bin/kiosk/start.sh` |
+| Change the URL (e.g. after rotating the key) | Run `install.sh` again with the new URL |
+| Remove it | `bin/kiosk/uninstall.sh` (add `--purge` to also delete its Chrome profile and offline cache) |
+
+Details:
+- It uses its own Chrome profile in `~/Library/Application Support/SignageKiosk/`, separate from your everyday Chrome. The log is `kiosk.log` in the same folder.
+- After a power cut it waits up to two minutes for the network before loading, and never shows Chrome's "Restore pages?" bar.
+- The Mac and display stay awake while the player runs.
+- For hands-off recovery after a power cut, turn on automatic login for this account (System Settings → Users & Groups), and in System Settings → Energy, turn on "Start up automatically after a power failure" if your Mac offers it.
+- To mirror to the TV, pick the TV in Control Center → Screen Mirroring once. macOS reconnects to the same AirPlay display on its own.
+
+## Kiosk video note
+
+Signage videos are H.264 MP4 (PRD §12). Google Chrome plays those; the open-source Chromium build does not include the H.264 codec. If the shop Mac runs Chromium and a video block gets skipped (the Preview tab shows a "Video failed to load" error from the player), switch the kiosk to Chrome in kiosk mode or upload WebM (VP9) instead.
+
+## Deploying to Pressable
+
+`npm run plugin-zip` produces `wots-signage.zip` (includes `build/` and `vendor/`). Upload it under Plugins → Add New → Upload on a **staging** site first. Run `composer install --no-dev` before zipping once there are production PHP dependencies.

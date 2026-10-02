@@ -1,0 +1,24 @@
+{
+	"name": "wots/signage",
+	"description": "Digital signage plugin for Word on the Street Books",
+	"type": "wordpress-plugin",
+	"require": {
+		"php": ">=8.3"
+	},
+	"require-dev": {
+		"php-stubs/wordpress-stubs": "^6.5",
+		"wp-coding-standards/wpcs": "^3.0"
+	},
+	"config": {
+		"platform": {
+			"php": "8.3"
+		},
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
+	"scripts": {
+		"lint": "phpcs",
+		"lint:fix": "phpcbf"
+	}
+}
