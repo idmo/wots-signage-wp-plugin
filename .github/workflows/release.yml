@@ -1,0 +1,54 @@
+# Builds the installable plugin zip and publishes a GitHub release whenever a
+# version tag (v1.2.3) is pushed. Sites running the plugin see the release as
+# an update on their Plugins screen (see includes/Updater.php).
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Check the tag matches the plugin version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          HEADER=$(sed -n 's/^ \* Version: *//p' wots-signage.php | tr -d '[:space:]')
+          CONST=$(sed -n "s/.*define( 'WOTS_SIGNAGE_VERSION', '\([^']*\)' );.*/\1/p" wots-signage.php)
+          echo "tag=$TAG header=$HEADER constant=$CONST"
+          if [ "$TAG" != "$HEADER" ] || [ "$TAG" != "$CONST" ]; then
+            echo "::error::Tag v$TAG doesn't match the version in wots-signage.php. Use bin/release.sh to bump versions."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx wp-scripts plugin-zip
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## " v "( |$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Version $VERSION" > notes.md
+          cat notes.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" wots-signage.zip --title "$GITHUB_REF_NAME" --notes-file notes.md

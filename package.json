@@ -1,6 +1,6 @@
 {
 	"name": "wots-signage",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"description": "Digital signage plugin for Word on the Street Books",
 	"scripts": {
@@ -19,6 +19,7 @@
 	"files": [
 		"wots-signage.php",
 		"includes",
+		"lib",
 		"build",
 		"vendor",
 		"readme.txt"

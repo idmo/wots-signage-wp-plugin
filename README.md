@@ -133,12 +133,16 @@ includes/               PHP (namespace WOTS\Signage, one class per file)
   Rest/                 Player_Controller (key auth), Admin_Controller
   Player_Route.php      /signage/player page and /signage/sw.js
   Admin_Menu.php        Signage menu, Settings page, category fields
+  Updater.php           Checks GitHub releases for plugin updates
 src/admin/              React admin (Shows, Blocks, Templates, Preview, Import/Export)
 src/player/             Standalone kiosk player
 src/shared/             Renderer shared by the player and the Template Builder preview
 src/sw/                 Service worker for offline playback
 bin/check-cache.sh      Pressable cache-bypass check
 bin/kiosk/              Shop Mac setup: Chrome kiosk at login (install/start/uninstall)
+bin/release.sh          Bump the version, update the changelog, tag a release
+lib/                    Bundled Plugin Update Checker (updates from GitHub releases)
+.github/workflows/      Builds and publishes the plugin zip when a version tag is pushed
 build/                  Compiled JS/CSS (generated — not committed)
 .wp-env.json            Local WordPress definition
 .vscode/                Editor settings, debugger, tasks
@@ -188,6 +192,25 @@ Details:
 
 Signage videos are H.264 MP4 (PRD §12). Google Chrome plays those; the open-source Chromium build does not include the H.264 codec. If the shop Mac runs Chromium and a video block gets skipped (the Preview tab shows a "Video failed to load" error from the player), switch the kiosk to Chrome in kiosk mode or upload WebM (VP9) instead.
 
+## Releases and updates
+
+The plugin updates itself from this repo's GitHub releases, like a plugin from WordPress.org. When a new release is out, **Plugins** shows "There is a new version of WOTS Signage available" with an **Update now** link. WordPress checks about twice a day; the **Check for updates** link under the plugin's row checks immediately.
+
+To publish a new version:
+
+```bash
+bin/release.sh patch     # 0.2.1 -> 0.2.2 for fixes (or: minor, major, or an exact 1.0.0)
+git push && git push --tags
+```
+
+`release.sh` sets the version in `wots-signage.php` and `package.json`, adds a `CHANGELOG.md` entry from your commit messages (edit it before confirming if you like; it becomes the release notes), commits, and tags. Pushing the tag runs `.github/workflows/release.yml`, which builds `wots-signage.zip` and attaches it to a GitHub release. Watch it under the repo's **Actions** tab; it takes a couple of minutes.
+
+Then update **staging** first, check the TV preview, and update the live site. The shop player reloads itself after the update.
+
+Versions follow `major.minor.patch`: patch for fixes, minor for new features, major for big or breaking changes. The workflow refuses to publish if the tag and the version in `wots-signage.php` disagree.
+
+Update checks use [Plugin Update Checker](https://github.com/YahnisElsts/plugin-update-checker) (MIT), bundled in `lib/`. To turn them off on a local copy: `add_filter( 'wots_signage_check_for_updates', '__return_false' );`
+
 ## Deploying to Pressable
 
-`npm run plugin-zip` produces `wots-signage.zip` (includes `build/` and `vendor/`). Upload it under Plugins → Add New → Upload on a **staging** site first. Run `composer install --no-dev` before zipping once there are production PHP dependencies.
+The first install is a manual upload: download `wots-signage.zip` from the latest [GitHub release](https://github.com/idmo/wots-signage-wp-plugin/releases), then Plugins → Add New Plugin → Upload Plugin on the **staging** site first. After that, updates arrive on their own (see above). To build a zip locally instead, run `npm run plugin-zip`.

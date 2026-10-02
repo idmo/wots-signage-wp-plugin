@@ -2,6 +2,7 @@
 <ruleset name="WOTS Signage">
 	<file>wots-signage.php</file>
 	<file>includes</file>
+	<exclude-pattern>lib/*</exclude-pattern>
 	<arg name="extensions" value="php"/>
 	<arg value="sp"/>
 	<config name="minimum_wp_version" value="6.5"/>

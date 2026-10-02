@@ -24,6 +24,7 @@ final class Plugin {
 
 		Version::register_hooks();
 		Import_Export::register();
+		Updater::boot();
 
 		add_action( 'admin_menu', array( Admin_Menu::class, 'register' ) );
 		add_action( 'admin_enqueue_scripts', array( Admin_Menu::class, 'enqueue' ) );
