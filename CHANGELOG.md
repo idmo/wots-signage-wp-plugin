@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-10-04)
+
+- Instagram Posts block: your latest photos, reels, and albums in a 9:16 frame with the caption beside it (centered when there's no caption), or a grid in List mode. Reels play muted.
+- Instagram Followers block: "Follow us on Instagram" with a live follower count that counts up while it's on screen, plus a QR code to your profile.
+- Connect Instagram in Signage → Settings with an access token; it renews itself automatically. See "Instagram" in the README.
+- Posts block: regular WordPress posts, filterable by category and tag.
+- Hand-pick specific items by title or ID on Posts, Events, Community Board, and Featured Readers blocks.
+- Fixed: slide titles showed in the admin's heading color in previews.
+
 ## 0.3.0 (2026-10-04)
 
 - Block preview: the eye button (or Preview in the block editor, including unsaved changes) plays one block with the real player, ignoring its dates.
