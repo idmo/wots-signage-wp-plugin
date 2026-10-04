@@ -233,6 +233,7 @@ final class Resolver {
 			'range_start'         => (string) get_post_meta( $block_id, '_range_start', true ),
 			'range_end'           => (string) get_post_meta( $block_id, '_range_end', true ),
 			'terms'               => is_array( $terms ) ? $terms : array(),
+			'post_ids'            => array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $block_id, '_post_ids', true ) ) ) ),
 		);
 	}
 

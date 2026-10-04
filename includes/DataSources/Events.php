@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  *   dates  everything between range_start and range_end (Y-m-d)
  * In the last three, max_items is an optional cap.
  */
-final class Events implements Data_Source, Filterable {
+final class Events implements Data_Source, Filterable, Pickable {
 
 	public const DEFAULT_MAX = 5;
 	public const RANGES      = array( 'next', 'days', 'month', 'dates' );
@@ -50,6 +50,14 @@ final class Events implements Data_Source, Filterable {
 
 	public function taxonomies(): array {
 		return Helpers::taxonomies_for( array( 'tribe_events' ) );
+	}
+
+	public function pick_post_type(): string {
+		return 'tribe_events';
+	}
+
+	public function pick_label(): string {
+		return 'events';
 	}
 
 	/**
@@ -105,8 +113,28 @@ final class Events implements Data_Source, Filterable {
 			$args['starts_before'] = $to->format( 'Y-m-d H:i:s' );
 		}
 
+		// Hand-picked events: just those, soonest first. Ones that have
+		// ended still drop out.
+		$ids = Helpers::post_ids( $block_config );
+		if ( $ids ) {
+			$events = array_filter(
+				array_map( 'get_post', $ids ),
+				static fn( $p ) => $p instanceof \WP_Post && 'tribe_events' === $p->post_type && 'publish' === $p->post_status
+			);
+			usort(
+				$events,
+				static fn( $a, $b ) => strcmp( (string) get_post_meta( $a->ID, '_EventStartDate', true ), (string) get_post_meta( $b->ID, '_EventStartDate', true ) )
+			);
+			// Picking replaces "Which events": no window, no default cap.
+			$from = new \DateTimeImmutable( 'now', wp_timezone() );
+			$to   = null;
+			$max  = (int) ( $block_config['max_items'] ?? 0 ) > 0 ? $max : count( $events );
+		} else {
+			$events = (array) tribe_get_events( $args );
+		}
+
 		$items = array();
-		foreach ( (array) tribe_get_events( $args ) as $event ) {
+		foreach ( $events as $event ) {
 			$event = get_post( $event );
 			if ( ! $event ) {
 				continue;

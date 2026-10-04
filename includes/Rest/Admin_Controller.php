@@ -6,6 +6,7 @@ use WOTS\Signage\Blocks;
 use WOTS\Signage\Import_Export;
 use WOTS\Signage\DataSources\Filterable;
 use WOTS\Signage\DataSources\Helpers;
+use WOTS\Signage\DataSources\Pickable;
 use WOTS\Signage\DataSources\Registry;
 use WOTS\Signage\Player_Route;
 use WOTS\Signage\Plugin;
@@ -71,6 +72,16 @@ final class Admin_Controller {
 						'items'    => array( 'type' => 'integer' ),
 					),
 				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/data-sources/(?P<key>[a-z0-9_-]+)/posts',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'source_posts' ),
+				'permission_callback' => $perm,
 			)
 		);
 
@@ -345,6 +356,7 @@ final class Admin_Controller {
 						'range_start'         => sanitize_text_field( (string) $request->get_param( 'range_start' ) ),
 						'range_end'           => sanitize_text_field( (string) $request->get_param( 'range_end' ) ),
 						'terms'               => is_array( $terms ) ? $terms : array(),
+						'post_ids'            => array_filter( array_map( 'intval', explode( ',', (string) $request->get_param( 'post_ids' ) ) ) ),
 					)
 				),
 			)
@@ -362,6 +374,21 @@ final class Admin_Controller {
 				'lineup' => Sequences::save_lineup( (array) $request->get_param( 'shows' ) ),
 				'shows'  => Sequences::summaries(),
 			)
+		);
+	}
+
+	/**
+	 * The post picker: ?search=… (title, or an ID), or ?include=1,2,3 to
+	 * name already-picked posts.
+	 */
+	public static function source_posts( \WP_REST_Request $request ) {
+		$source = Registry::get( (string) $request['key'] );
+		if ( ! $source instanceof Pickable ) {
+			return new \WP_Error( 'wots_signage_not_found', 'This data source can’t pick posts.', array( 'status' => 404 ) );
+		}
+		$include = array_filter( array_map( 'intval', explode( ',', (string) $request->get_param( 'include' ) ) ) );
+		return new \WP_REST_Response(
+			Helpers::search_posts( $source->pick_post_type(), sanitize_text_field( (string) $request->get_param( 'search' ) ), $include )
 		);
 	}
 

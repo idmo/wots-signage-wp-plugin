@@ -134,6 +134,15 @@ export interface DataSourceInfo {
 	taxonomies: Record< string, string >;
 	/** Always one item (no "Show up to", no List). */
 	single?: boolean;
+	/** What a block can hand-pick by ID ("events", "posts"…), or ''. */
+	pick?: string;
+}
+
+export interface PickablePost {
+	id: number;
+	title: string;
+	date: string;
+	status: string;
 }
 
 export interface TaxonomyTerms {
@@ -203,6 +212,8 @@ export interface BlockRecord {
 		_range_end: string;
 		/** JSON { taxonomy: [ term_id ] }, or ''. */
 		_term_filter: string;
+		/** Hand-picked post IDs, in order: "12,7,40", or ''. */
+		_post_ids: string;
 	};
 }
 
@@ -288,6 +299,18 @@ export const previewBlock = ( id: number, record?: BlockRecord ) =>
 		path: `${ NS }/blocks/preview`,
 		method: 'POST',
 		data: { id, record: record ?? null },
+	} );
+
+/** Posts a block can pick: by title search, or name already-picked IDs. */
+export const searchSourcePosts = (
+	key: string,
+	query: { search?: string; include?: string }
+) =>
+	api< PickablePost[] >( {
+		path: `${ NS }/data-sources/${ key }/posts?${ new URLSearchParams( {
+			search: query.search ?? '',
+			include: query.include ?? '',
+		} ).toString() }`,
 	} );
 
 export const getSourceTerms = ( key: string ) =>
@@ -393,6 +416,7 @@ export const previewSource = (
 		range_start: m._range_start ?? '',
 		range_end: m._range_end ?? '',
 		terms: m._term_filter ?? '',
+		post_ids: m._post_ids ?? '',
 	} );
 	return api< {
 		available: boolean;

@@ -1,6 +1,8 @@
 import {
 	BaseControl,
+	Button,
 	CheckboxControl,
+	ComboboxControl,
 	Notice,
 	RangeControl,
 	SelectControl,
@@ -11,8 +13,10 @@ import {
 	adminConfig,
 	getSourceTerms,
 	previewSource,
+	searchSourcePosts,
 	type BlockRecord,
 	type DataSourceInfo,
+	type PickablePost,
 	type TaxonomyTerms,
 	type TemplateSummary,
 } from './api';
@@ -27,6 +31,7 @@ const MAX_DEFAULTS: Record< string, string > = {
 	community_board: '10',
 	featured_readers: '20',
 	instagram: '6',
+	posts: '5',
 };
 
 const int = ( v: string ) => Math.max( 0, parseInt( v, 10 ) || 0 );
@@ -52,6 +57,9 @@ export function DynamicSettings( {
 	const single = !! source?.single;
 	const isList = ! single && meta._display_mode === 'list';
 	const isEvents = meta._data_source === 'events';
+	const picked = meta._post_ids
+		? meta._post_ids.split( ',' ).filter( Boolean )
+		: [];
 	const eventRange = isEvents ? meta._event_range || 'next' : 'next';
 	const usable = templates.filter(
 		( t ) => t.data_source === meta._data_source
@@ -107,7 +115,7 @@ export function DynamicSettings( {
 				</Notice>
 			) }
 
-			{ isEvents && (
+			{ isEvents && picked.length === 0 && (
 				<EventRangeFields meta={ meta } setMeta={ setMeta } />
 			) }
 
@@ -126,7 +134,7 @@ export function DynamicSettings( {
 								: 'Optional cap. Blank = every event in range.'
 						}
 						placeholder={
-							eventRange === 'next'
+							eventRange === 'next' && ! picked.length
 								? ( MAX_DEFAULTS[ meta._data_source ] ?? '10' )
 								: 'All'
 						}
@@ -206,8 +214,19 @@ export function DynamicSettings( {
 				/>
 			) }
 
-			{ meta._data_source === 'featured_readers' && (
-				<MonthField meta={ meta } setMeta={ setMeta } />
+			{ meta._data_source === 'featured_readers' &&
+				picked.length === 0 && (
+					<MonthField meta={ meta } setMeta={ setMeta } />
+				) }
+
+			{ source?.pick && (
+				<PostPicker
+					key={ source.key }
+					sourceKey={ source.key }
+					noun={ source.pick }
+					value={ meta._post_ids }
+					onChange={ ( v ) => setMeta( { _post_ids: v } ) }
+				/>
 			) }
 
 			{ source && Object.keys( source.taxonomies ?? {} ).length > 0 && (
@@ -220,6 +239,164 @@ export function DynamicSettings( {
 
 			<MatchCount meta={ meta } />
 		</div>
+	);
+}
+
+/** What picking replaces, per source. */
+const PICK_NOTES: Record< string, string > = {
+	events: 'Picked events show soonest first, instead of “Which events”. Events that have ended drop off.',
+	featured_readers:
+		'Picked readers show their recommendations whatever their featured month, in the order picked.',
+	community_board:
+		'Picked postings still need to be approved and inside their dates.',
+};
+
+/**
+ * "Only these …": hand-pick posts of the source's type by title (or ID).
+ * Empty = the source chooses as usual.
+ */
+function PostPicker( {
+	sourceKey,
+	noun,
+	value,
+	onChange,
+}: {
+	sourceKey: string;
+	noun: string;
+	value: string;
+	onChange: ( v: string ) => void;
+} ) {
+	const ids = value ? value.split( ',' ).filter( Boolean ) : [];
+	const [ known, setKnown ] = useState< Record< string, PickablePost > >(
+		{}
+	);
+	const [ results, setResults ] = useState< PickablePost[] >( [] );
+	const [ search, setSearch ] = useState( '' );
+
+	// Names for already-picked posts.
+	useEffect( () => {
+		const missing = ids.filter( ( id ) => ! known[ id ] );
+		if ( ! missing.length ) {
+			return;
+		}
+		searchSourcePosts( sourceKey, { include: missing.join( ',' ) } )
+			.then( ( found ) =>
+				setKnown( ( k ) => ( {
+					...k,
+					...Object.fromEntries(
+						found.map( ( p ) => [ String( p.id ), p ] )
+					),
+				} ) )
+			)
+			.catch( () => {} );
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ value, sourceKey ] );
+
+	// Search as you type (title, or an ID).
+	useEffect( () => {
+		let live = true;
+		const t = window.setTimeout( () => {
+			searchSourcePosts( sourceKey, { search } )
+				.then( ( found ) => {
+					if ( live ) {
+						setResults( found );
+						setKnown( ( k ) => ( {
+							...k,
+							...Object.fromEntries(
+								found.map( ( p ) => [ String( p.id ), p ] )
+							),
+						} ) );
+					}
+				} )
+				.catch( () => live && setResults( [] ) );
+		}, 300 );
+		return () => {
+			live = false;
+			window.clearTimeout( t );
+		};
+	}, [ search, sourceKey ] );
+
+	const set = ( next: string[] ) => onChange( next.join( ',' ) );
+	const move = ( i: number, delta: number ) => {
+		const next = [ ...ids ];
+		const [ id ] = next.splice( i, 1 );
+		next.splice( i + delta, 0, id );
+		set( next );
+	};
+
+	return (
+		<fieldset className="wots-fieldset wots-picker">
+			<legend>Only these { noun }</legend>
+			<p className="wots-hint">
+				Leave empty to choose { noun } automatically.{ ' ' }
+				{ ids.length > 0 && ( PICK_NOTES[ sourceKey ] ?? '' ) }
+			</p>
+			{ ids.length > 0 && (
+				<ol className="wots-picker__list">
+					{ ids.map( ( id, i ) => {
+						const post = known[ id ];
+						return (
+							<li key={ id }>
+								<span className="wots-picker__title">
+									{ post ? post.title : `#${ id }` }
+									<span className="wots-subtle">
+										{ ' ' }
+										{ post
+											? `${ post.date } · ID ${ id }${
+													post.status !== 'publish'
+														? ` · ${ post.status }`
+														: ''
+												}`
+											: 'not found' }
+									</span>
+								</span>
+								<Button
+									size="small"
+									icon="arrow-up-alt2"
+									label="Move up"
+									disabled={ i === 0 }
+									onClick={ () => move( i, -1 ) }
+								/>
+								<Button
+									size="small"
+									icon="arrow-down-alt2"
+									label="Move down"
+									disabled={ i === ids.length - 1 }
+									onClick={ () => move( i, 1 ) }
+								/>
+								<Button
+									size="small"
+									icon="no-alt"
+									label="Remove"
+									onClick={ () =>
+										set( ids.filter( ( x ) => x !== id ) )
+									}
+								/>
+							</li>
+						);
+					} ) }
+				</ol>
+			) }
+			<ComboboxControl
+				__next40pxDefaultSize
+				__nextHasNoMarginBottom
+				label={ `Add ${ noun }` }
+				help="Type a title or an ID."
+				value={ null }
+				options={ results
+					.filter( ( p ) => ! ids.includes( String( p.id ) ) )
+					.map( ( p ) => ( {
+						value: String( p.id ),
+						label: `${ p.title } (${ p.date }, ID ${ p.id })`,
+					} ) ) }
+				onFilterValueChange={ setSearch }
+				onChange={ ( v ) => {
+					if ( v ) {
+						set( [ ...ids, v ] );
+					}
+				} }
+			/>
+		</fieldset>
 	);
 }
 
@@ -408,6 +585,7 @@ function MatchCount( { meta }: { meta: Meta } ) {
 		meta._term_filter,
 		meta._max_items,
 		meta._featured_month_year,
+		meta._post_ids,
 	].join( '|' );
 
 	useEffect( () => {

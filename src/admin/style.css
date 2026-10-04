@@ -1026,3 +1026,28 @@ button.wots-region__label:focus-visible {
 	margin: 2px 0 4px;
 	font-size: 12px;
 }
+
+/* Dynamic block: hand-picked posts */
+.wots-picker__list {
+	margin: 0 0 12px;
+	padding: 0;
+	list-style: none;
+	border: 1px solid #dcdcde;
+	border-radius: 2px;
+}
+
+.wots-picker__list li {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 4px 4px 10px;
+}
+
+.wots-picker__list li + li {
+	border-top: 1px solid #f0f0f1;
+}
+
+.wots-picker__title {
+	flex: 1;
+	min-width: 0;
+}

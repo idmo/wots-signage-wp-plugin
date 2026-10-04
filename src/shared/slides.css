@@ -167,7 +167,7 @@
 	height: auto;
 }
 
-.wots-b-title {
+.wots-stage .wots-b-title {
 	margin: 0 0 16px;
 	font-size: 64px;
 	font-weight: 700;
@@ -179,7 +179,7 @@
 	overflow: hidden;
 }
 
-.wots-b-title.is-tight {
+.wots-stage .wots-b-title.is-tight {
 	margin-bottom: 8px;
 }
 
@@ -230,7 +230,7 @@
 }
 
 /* List mode */
-.wots-list-label {
+.wots-stage .wots-list-label {
 	flex: none;
 	margin: 0 0 32px;
 	font-size: 48px;
@@ -709,7 +709,7 @@ video.wots-el--image {
 	box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.85);
 }
 
-.wots-fc__title {
+.wots-stage .wots-fc__title {
 	margin: 0;
 	font-size: 72px;
 	font-weight: 700;

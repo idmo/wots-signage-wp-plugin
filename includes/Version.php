@@ -61,6 +61,7 @@ final class Version {
 			PostTypes::SEQUENCE,
 			PostTypes::TEMPLATE,
 			'tribe_events',
+			'post',
 			DataSources\Community_Board::fields()['post_type'],
 			DataSources\Featured_Readers::fields()['reader_post_type'],
 			DataSources\Featured_Readers::fields()['recommendation_post_type'],

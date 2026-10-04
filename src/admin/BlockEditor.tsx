@@ -73,6 +73,7 @@ const EMPTY: BlockRecord = {
 		_range_start: '',
 		_range_end: '',
 		_term_filter: '',
+		_post_ids: '',
 	},
 };
 
@@ -233,7 +234,7 @@ export function BlockEditor( {
 					{ value: 'video', label: 'Video' },
 					{
 						value: 'dynamic_template',
-						label: 'Dynamic (events, community board, readers, Instagram)',
+						label: 'Dynamic (events, posts, community board, readers, Instagram)',
 					},
 				] }
 				onChange={ ( v ) => setMeta( { _block_type: v as BlockType } ) }

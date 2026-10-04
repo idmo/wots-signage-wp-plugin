@@ -192,4 +192,70 @@ final class Helpers {
 		}
 		return $out;
 	}
+
+	/**
+	 * The block's hand-picked post IDs, in order.
+	 *
+	 * @return int[]
+	 */
+	public static function post_ids( array $block_config ): array {
+		return array_values( array_unique( array_filter( array_map( 'intval', (array) ( $block_config['post_ids'] ?? array() ) ) ) ) );
+	}
+
+	/**
+	 * A WP_Query tax_query for a term_filter(): any term within a taxonomy,
+	 * every taxonomy.
+	 *
+	 * @param array<string, int[]> $filter From term_filter().
+	 */
+	public static function tax_query( array $filter ): array {
+		$query = array( 'relation' => 'AND' );
+		foreach ( $filter as $taxonomy => $ids ) {
+			$query[] = array(
+				'taxonomy' => $taxonomy,
+				'field'    => 'term_id',
+				'terms'    => $ids,
+			);
+		}
+		return $query;
+	}
+
+	/**
+	 * Titles for the editor's post picker: a search, or specific IDs.
+	 *
+	 * @param int[] $ids IDs to look up instead of searching.
+	 */
+	public static function search_posts( string $post_type, string $search, array $ids = array() ): array {
+		if ( ! post_type_exists( $post_type ) ) {
+			return array();
+		}
+		$args = array(
+			'post_type'      => $post_type,
+			'post_status'    => 'publish',
+			'posts_per_page' => 20,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+		);
+		if ( $ids ) {
+			$args['post__in']       = $ids;
+			$args['orderby']        = 'post__in';
+			$args['posts_per_page'] = count( $ids );
+			$args['post_status']    = 'any';
+		} elseif ( '' !== $search ) {
+			if ( ctype_digit( $search ) ) {
+				$args['p'] = (int) $search; // Typed an ID.
+			} else {
+				$args['s'] = $search;
+			}
+		}
+		return array_map(
+			static fn( \WP_Post $p ) => array(
+				'id'     => $p->ID,
+				'title'  => html_entity_decode( get_the_title( $p ), ENT_QUOTES, 'UTF-8' ),
+				'date'   => get_the_date( 'M j, Y', $p ),
+				'status' => $p->post_status,
+			),
+			get_posts( $args )
+		);
+	}
 }

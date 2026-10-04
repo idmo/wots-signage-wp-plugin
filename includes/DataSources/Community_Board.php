@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  * start_date (date), end_date (datetime), website, and approved. The slugs
  * can be changed with the `wots_signage_community_board_fields` filter.
  */
-final class Community_Board implements Data_Source, Filterable {
+final class Community_Board implements Data_Source, Filterable, Pickable {
 
 	public const DEFAULT_MAX = 10;
 
@@ -65,7 +65,16 @@ final class Community_Board implements Data_Source, Filterable {
 		return Helpers::taxonomies_for( array( (string) self::fields()['post_type'] ) );
 	}
 
+	public function pick_post_type(): string {
+		return (string) self::fields()['post_type'];
+	}
+
+	public function pick_label(): string {
+		return 'postings';
+	}
+
 	public function items( array $block_config ): array {
+		$ids    = Helpers::post_ids( $block_config );
 		$f      = self::fields();
 		$filter = Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() );
 		if ( ! post_type_exists( (string) $f['post_type'] ) ) {
@@ -75,15 +84,20 @@ final class Community_Board implements Data_Source, Filterable {
 		$max   = (int) ( $block_config['max_items'] ?? 0 );
 		$max   = $max > 0 ? min( $max, 50 ) : self::DEFAULT_MAX;
 		$now   = time();
-		$posts = get_posts(
-			array(
-				'post_type'      => $f['post_type'],
-				'post_status'    => 'publish',
-				'posts_per_page' => 200, // phpcs:ignore WordPress.WP.PostsPerPage -- filtered below; small set.
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-			)
+		$query = array(
+			'post_type'      => $f['post_type'],
+			'post_status'    => 'publish',
+			'posts_per_page' => 200, // phpcs:ignore WordPress.WP.PostsPerPage -- filtered below; small set.
+			'orderby'        => 'date',
+			'order'          => 'DESC',
 		);
+		if ( $ids ) {
+			// Hand-picked postings, in the order picked. They still need to
+			// be approved and inside their dates.
+			$query['post__in'] = $ids;
+			$query['orderby']  = 'post__in';
+		}
+		$posts = get_posts( $query );
 
 		$items = array();
 		foreach ( $posts as $post ) {

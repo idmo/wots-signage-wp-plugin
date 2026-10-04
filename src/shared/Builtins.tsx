@@ -51,6 +51,25 @@ export function EventCard( { fields }: { fields: Fields } ) {
 	);
 }
 
+/** A regular WordPress post. */
+export function PostCard( { fields }: { fields: Fields } ) {
+	const meta = [ str( fields.date ), str( fields.categories ) ]
+		.filter( Boolean )
+		.join( ' · ' );
+	return (
+		<>
+			<Banner image={ fields.featured_image as ImageAsset | null } />
+			<CardBody qr={ str( fields.qr_code ) } caption="Scan to read more">
+				<h1 className="wots-b-title">{ str( fields.title ) }</h1>
+				{ meta && <div className="wots-b-meta">{ meta }</div> }
+				{ !! fields.excerpt && (
+					<p className="wots-b-body">{ str( fields.excerpt ) }</p>
+				) }
+			</CardBody>
+		</>
+	);
+}
+
 export function BulletinCard( { fields }: { fields: Fields } ) {
 	return (
 		<>
@@ -146,6 +165,25 @@ export function EventsList( {
 				<div key={ e.id } className="wots-list-row is-baseline">
 					<div className="wots-list-when">{ str( e.date_time ) }</div>
 					<div className="wots-list-title">{ str( e.title ) }</div>
+				</div>
+			) ) }
+		</ListFrame>
+	);
+}
+
+export function PostsList( {
+	label,
+	items,
+}: {
+	label: string;
+	items: ListItems;
+} ) {
+	return (
+		<ListFrame label={ label }>
+			{ items.map( ( p ) => (
+				<div key={ p.id } className="wots-list-row is-baseline">
+					<div className="wots-list-when">{ str( p.date ) }</div>
+					<div className="wots-list-title">{ str( p.title ) }</div>
 				</div>
 			) ) }
 		</ListFrame>

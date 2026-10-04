@@ -4,6 +4,8 @@ import {
 	BulletinList,
 	EventCard,
 	EventsList,
+	PostCard,
+	PostsList,
 	ReaderCard,
 	ReadersList,
 } from './Builtins';
@@ -15,6 +17,7 @@ import type { Fields, SlideItem } from './types';
 const CARDS: Record< string, ( p: { fields: Fields } ) => React.JSX.Element > =
 	{
 		events: EventCard,
+		posts: PostCard,
 		community_board: BulletinCard,
 		featured_readers: ReaderCard,
 		instagram: InstagramCard,
@@ -29,6 +32,7 @@ const LISTS: Record<
 	} ) => React.JSX.Element
 > = {
 	events: EventsList,
+	posts: PostsList,
 	community_board: BulletinList,
 	featured_readers: ReadersList,
 	instagram: InstagramList,

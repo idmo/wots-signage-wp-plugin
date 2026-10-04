@@ -8,6 +8,8 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 
 **Dynamic blocks** read WordPress directly:
 - **Upcoming Events** (The Events Calendar): the next few events, every event in the next N days, everything left this month, or everything between two dates (with an optional cap).
+- **Posts**: regular WordPress posts, newest first, with featured image, title, date, categories, excerpt, and a QR code to the post. Narrow by category or tag, or hand-pick posts.
+- **Hand-picked posts:** Events, Posts, Community Board, and Featured Readers blocks can show specific items (search by title or type an ID). Picked events show soonest first and still drop off once they end; picked postings still need approval and their dates; picked readers show whatever their featured month. Picks aren't carried by Import/Export, since post IDs differ between sites.
 - **Category filters:** any source can be narrowed to the categories/tags of its own items (event categories, bulletin board taxonomies, book categories). The editor shows how many items match right now.
 - **Community Board**: Pods `bulletin_board_item` posts that are published, `approved`, and inside their `start_date`/`end_date` window. A posting drops off the moment its end time passes.
 - **Instagram Posts**: the shop account's latest photos, reels, and albums (first slide). Built-in layout: the post in a 9:16 frame on the left with its caption on the right, or centered when there's no caption. List mode shows a grid. Reels play muted.
@@ -145,7 +147,9 @@ includes/               PHP (namespace WOTS\Signage, one class per file)
   Blocks.php            Block summaries for the admin library
   Media.php             Attachment helpers, signage_169 image size
   Settings.php          Poll interval, default durations, brand color
-  DataSources/          Data_Source and Filterable interfaces, Registry, Events, Community_Board, Featured_Readers
+  DataSources/          Data_Source, Filterable and Pickable interfaces, Registry, Events, Posts,
+                        Community_Board, Featured_Readers, Instagram_Posts, Instagram_Followers
+  Instagram.php         Instagram API client: token, renewal, caching
   Templates.php         Template Builder storage and resolution
   Import_Export.php     Zip export/import with media hash matching
   Rest/                 Player_Controller (key auth), Admin_Controller

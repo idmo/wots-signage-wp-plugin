@@ -95,6 +95,8 @@ final class PostTypes {
 			'_range_start'         => array( 'string', array( Schedule::class, 'sanitize_date' ) ),
 			'_range_end'           => array( 'string', array( Schedule::class, 'sanitize_date' ) ),
 			'_term_filter'         => array( 'string', array( self::class, 'sanitize_term_filter' ) ), // JSON { taxonomy: [ids] }
+			// Hand-picked posts of the source's type, in order: "12,7,40".
+			'_post_ids'            => array( 'string', array( self::class, 'sanitize_post_ids' ) ),
 			// Panel styling for dynamic blocks (ported from the Next.js build).
 			'_bg_image_id'         => array( 'integer', $int ),
 			'_panel_color'         => array( 'string', $hex, '#000000' ),
@@ -154,6 +156,16 @@ final class PostTypes {
 			}
 		}
 		return $out ? (string) wp_json_encode( $out ) : '';
+	}
+
+	/**
+	 * "12, 7, 40" (or an array) → "12,7,40": positive IDs, once each, in order.
+	 *
+	 * @param mixed $value String or array of IDs.
+	 */
+	public static function sanitize_post_ids( $value ): string {
+		$ids = is_array( $value ) ? $value : preg_split( '/[\s,]+/', (string) $value );
+		return implode( ',', array_values( array_unique( array_filter( array_map( 'intval', (array) $ids ), static fn( $id ) => $id > 0 ) ) ) );
 	}
 
 	private static function meta( string $post_type, string $key, string $type, $sanitize = null, $default_value = null ): void {

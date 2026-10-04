@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * recommendations play back to back. Book title, cover, and link come live
  * from the WooCommerce product.
  */
-final class Featured_Readers implements Data_Source, Filterable {
+final class Featured_Readers implements Data_Source, Filterable, Pickable {
 
 	public const DEFAULT_MAX = 20;
 
@@ -87,6 +87,15 @@ final class Featured_Readers implements Data_Source, Filterable {
 		return Helpers::taxonomies_for( array( (string) $f['recommendation_post_type'] ) ) + $book;
 	}
 
+	/** Picking readers features them whatever their month. */
+	public function pick_post_type(): string {
+		return (string) self::fields()['reader_post_type'];
+	}
+
+	public function pick_label(): string {
+		return 'readers';
+	}
+
 	/**
 	 * Target month as "Y-m": the block's pinned "Month & Year", or the
 	 * current month in the site timezone. Null if the pin can't be parsed.
@@ -125,13 +134,19 @@ final class Featured_Readers implements Data_Source, Filterable {
 		if ( ! $this->is_available() ) {
 			return array();
 		}
-		$target = self::target_month( (string) ( $block_config['featured_month_year'] ?? '' ) );
-		if ( ! $target ) {
+		$readers = Helpers::post_ids( $block_config );
+		$target  = $readers ? '' : self::target_month( (string) ( $block_config['featured_month_year'] ?? '' ) );
+		if ( ! $readers && ! $target ) {
 			return array();
 		}
 
-		$entries = $this->entries( $target, Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() ) );
+		$entries = $this->entries( (string) $target, Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() ), $readers );
 		$entries = self::group_by_reader( $entries );
+		if ( $readers ) {
+			// Picked readers play in the order they were picked.
+			$rank = array_flip( $readers );
+			usort( $entries, static fn( $a, $b ) => ( $rank[ (int) $a['fields']['reader_id'] ] ?? 0 ) <=> ( $rank[ (int) $b['fields']['reader_id'] ] ?? 0 ) );
+		}
 
 		$max = (int) ( $block_config['max_items'] ?? 0 );
 		$max = $max > 0 ? min( $max, 100 ) : self::DEFAULT_MAX;
@@ -142,19 +157,24 @@ final class Featured_Readers implements Data_Source, Filterable {
 	 * Recommendations of every reader featured for $target, in the same
 	 * order the mu-plugin returned them.
 	 */
-	private function entries( string $target, array $filter = array() ): array {
+	/**
+	 * @param int[] $reader_ids Hand-picked readers; when given, the month is ignored.
+	 */
+	private function entries( string $target, array $filter = array(), array $reader_ids = array() ): array {
 		$f = self::fields();
 
 		$readers = array();
-		$posts   = get_posts(
-			array(
-				'post_type'      => $f['reader_post_type'],
-				'post_status'    => 'publish',
-				'posts_per_page' => -1, // phpcs:ignore WordPress.WP.PostsPerPage -- small set of readers.
-			)
+		$query   = array(
+			'post_type'      => $f['reader_post_type'],
+			'post_status'    => 'publish',
+			'posts_per_page' => -1, // phpcs:ignore WordPress.WP.PostsPerPage -- small set of readers.
 		);
-		foreach ( $posts as $reader ) {
-			if ( self::parse_month_year( Helpers::meta( $reader->ID, $f['featured_month_year'] ) ) !== $target ) {
+		if ( $reader_ids ) {
+			$query['post__in'] = $reader_ids;
+			$query['orderby']  = 'post__in';
+		}
+		foreach ( get_posts( $query ) as $reader ) {
+			if ( ! $reader_ids && self::parse_month_year( Helpers::meta( $reader->ID, $f['featured_month_year'] ) ) !== $target ) {
 				continue;
 			}
 			$readers[ $reader->ID ] = array(
