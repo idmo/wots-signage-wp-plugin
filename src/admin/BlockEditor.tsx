@@ -233,7 +233,7 @@ export function BlockEditor( {
 					{ value: 'video', label: 'Video' },
 					{
 						value: 'dynamic_template',
-						label: 'Dynamic (events, community board, readers)',
+						label: 'Dynamic (events, community board, readers, Instagram)',
 					},
 				] }
 				onChange={ ( v ) => setMeta( { _block_type: v as BlockType } ) }

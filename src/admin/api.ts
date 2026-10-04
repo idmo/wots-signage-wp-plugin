@@ -132,6 +132,8 @@ export interface DataSourceInfo {
 	} >;
 	/** Taxonomies a block can filter by: slug → label. */
 	taxonomies: Record< string, string >;
+	/** Always one item (no "Show up to", no List). */
+	single?: boolean;
 }
 
 export interface TaxonomyTerms {

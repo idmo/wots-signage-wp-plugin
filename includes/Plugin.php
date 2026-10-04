@@ -27,6 +27,7 @@ final class Plugin {
 		add_action( 'before_delete_post', array( Sequences::class, 'forget' ) );
 		Import_Export::register();
 		Updater::boot();
+		Instagram::register();
 
 		add_action( 'admin_menu', array( Admin_Menu::class, 'register' ) );
 		Admin_Menu::register_handlers();

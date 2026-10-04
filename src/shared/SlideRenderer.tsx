@@ -7,6 +7,7 @@ import {
 	ReaderCard,
 	ReadersList,
 } from './Builtins';
+import { FollowerCard, InstagramCard, InstagramList } from './Instagram';
 import { PanelBox } from './Panel';
 import { TemplateSlide } from './TemplateSlide';
 import type { Fields, SlideItem } from './types';
@@ -16,6 +17,8 @@ const CARDS: Record< string, ( p: { fields: Fields } ) => React.JSX.Element > =
 		events: EventCard,
 		community_board: BulletinCard,
 		featured_readers: ReaderCard,
+		instagram: InstagramCard,
+		instagram_followers: FollowerCard,
 	};
 
 const LISTS: Record<
@@ -28,6 +31,10 @@ const LISTS: Record<
 	events: EventsList,
 	community_board: BulletinList,
 	featured_readers: ReadersList,
+	instagram: InstagramList,
+	instagram_followers: ( { items } ) => (
+		<FollowerCard fields={ items[ 0 ] ?? {} } />
+	),
 };
 
 /**

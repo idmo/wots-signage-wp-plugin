@@ -1,3 +1,4 @@
+import { LiveFollowers, MediaView } from './Instagram';
 import { Qr } from './Qr';
 import {
 	META_KEYS,
@@ -9,6 +10,7 @@ import type {
 	ElementPlacement,
 	Fields,
 	ImageAsset,
+	MediaAsset,
 	ResolvedTemplate,
 } from './types';
 
@@ -70,6 +72,12 @@ function guessType( key: string ): string {
 	if ( key.endsWith( '_html' ) ) {
 		return 'html';
 	}
+	if ( key === 'media' ) {
+		return 'media';
+	}
+	if ( key === 'followers' ) {
+		return 'followers';
+	}
 	if ( /image|cover|photo/.test( key ) ) {
 		return 'image';
 	}
@@ -103,6 +111,26 @@ export function ElementRenderer( {
 				className={ `wots-el wots-el--${ options?.role ?? 'meta' } is-free${ align }${ size }` }
 			>
 				{ text }
+			</p>
+		);
+	}
+
+	if ( type === 'media' ) {
+		return (
+			<MediaView
+				media={ value as MediaAsset | null }
+				fit={ options?.fit ?? 'cover' }
+				className="wots-el wots-el--image"
+			/>
+		);
+	}
+
+	if ( type === 'followers' ) {
+		return (
+			<p
+				className={ `wots-el wots-el--title is-followers${ align }${ size }` }
+			>
+				<LiveFollowers initial={ Number( value ) || 0 } />
 			</p>
 		);
 	}

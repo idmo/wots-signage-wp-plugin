@@ -10,6 +10,8 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 - **Upcoming Events** (The Events Calendar): the next few events, every event in the next N days, everything left this month, or everything between two dates (with an optional cap).
 - **Category filters:** any source can be narrowed to the categories/tags of its own items (event categories, bulletin board taxonomies, book categories). The editor shows how many items match right now.
 - **Community Board**: Pods `bulletin_board_item` posts that are published, `approved`, and inside their `start_date`/`end_date` window. A posting drops off the moment its end time passes.
+- **Instagram Posts**: the shop account's latest photos, reels, and albums (first slide). Built-in layout: the post in a 9:16 frame on the left with its caption on the right, or centered when there's no caption. List mode shows a grid. Reels play muted.
+- **Instagram Followers**: "Follow us on Instagram" with the live follower count and a QR code. While it's on screen the count is re-checked every 15 seconds and counts up, so someone who follows from the shop sees it change (usually within a minute, depending on how quickly Instagram updates its count).
 - **Featured Readers**: readers whose `featured_month_year` matches this month (or a pinned month), each with their published recommendations. Book title, cover, and link come live from WooCommerce, and the author comes from `book_author`. A reader's books play back to back.
 - **Carousel** shows one item per slide; **List** puts every item on one slide (Featured Readers lists each reader once, with their books under them).
 - Each block has its own background image, panel color and opacity, and title/body/meta colors. The built-in layouts match the Next.js player.
@@ -33,6 +35,16 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 **Settings:** player key (copy / rotate), screen shape, poll interval, default durations, brand color, default transition and content animation. Categories can set a default duration and a default template.
 
 Not yet (Phase 3): heartbeat alerting through n8n, auto-fill ordering pools, scheduled show switching, more data sources, multiple displays, the Next.js importer.
+
+### Instagram
+
+Instagram only shares this through its official API, so it needs a one-time setup. The account must be a **Business or Creator** account. Switching is free: in the Instagram app go to Settings → Account type and tools → Switch to professional account.
+
+1. Go to [developers.facebook.com](https://developers.facebook.com/apps), log in, and **Create app**. Choose the use case for managing messaging and content on Instagram.
+2. In the app, open **Instagram → API setup with Instagram login**. Under **Generate access tokens**, add the shop's Instagram account, log in to it, and **Generate token**. If Meta says the account needs a role, add it under App roles → Roles as an Instagram tester, then accept the invite in the Instagram app.
+3. Copy the token and paste it into **Signage → Settings → Instagram → Connect Instagram**.
+
+The app can stay in development mode; it only reads your own account, so it doesn't need App Review. Menu names on Meta's site shift from time to time. The token lasts 60 days, and the plugin renews it automatically. If renewal ever fails (say the Instagram password changed), Settings shows the error and the blocks keep showing the last posts they had until you paste a new token. Only the connected account can be shown; other accounts' posts would need the older Facebook-Page-linked API.
 
 ### Field names
 

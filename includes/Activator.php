@@ -22,6 +22,7 @@ final class Activator {
 	}
 
 	public static function deactivate(): void {
+		wp_clear_scheduled_hook( Instagram::CRON );
 		flush_rewrite_rules();
 	}
 }

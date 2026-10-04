@@ -819,7 +819,10 @@ function PlacedElement( {
 				{ isText ? `Text: ${ opts.text || '(empty)' }` : label }
 			</span>
 			<span className="wots-placed__opts">
-				{ ( type === 'text' || type === 'html' || isText ) && (
+				{ ( type === 'text' ||
+					type === 'html' ||
+					type === 'followers' ||
+					isText ) && (
 					<span className="wots-seg" role="group" aria-label="Size">
 						{ SIZES.map( ( [ v, l ] ) => (
 							<button
@@ -835,7 +838,7 @@ function PlacedElement( {
 						) ) }
 					</span>
 				) }
-				{ type === 'image' && (
+				{ ( type === 'image' || type === 'media' ) && (
 					<span
 						className="wots-seg"
 						role="group"
@@ -855,7 +858,7 @@ function PlacedElement( {
 						) ) }
 					</span>
 				) }
-				{ type !== 'image' && (
+				{ type !== 'image' && type !== 'media' && (
 					<span
 						className="wots-seg"
 						role="group"

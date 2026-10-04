@@ -7,6 +7,8 @@ import {
 	useState,
 } from '@wordpress/element';
 import {
+	NS,
+	api,
 	createShow,
 	deleteShow,
 	duplicateShow,
@@ -41,6 +43,7 @@ import { PreviewScreen } from './PreviewScreen';
 import { ShowScreen } from './ShowScreen';
 import { ShowsBar } from './ShowsBar';
 import { TemplatesScreen } from './TemplatesScreen';
+import { setFollowerFetcher } from '../shared/live';
 import './style.css';
 
 type Editing = { id: number | null } | null;
@@ -448,6 +451,13 @@ function App() {
 		</div>
 	);
 }
+
+// Previews of the follower counter update live too.
+setFollowerFetcher( () =>
+	api< { followers: number | null } >( {
+		path: `${ NS }/player/instagram-followers`,
+	} )
+);
 
 const el = document.getElementById( 'wots-signage-admin' );
 if ( el ) {

@@ -1,6 +1,7 @@
 <?php
 namespace WOTS\Signage\Rest;
 
+use WOTS\Signage\Instagram;
 use WOTS\Signage\Player_Route;
 use WOTS\Signage\Plugin;
 use WOTS\Signage\Resolver;
@@ -48,6 +49,18 @@ final class Player_Controller {
 			)
 		);
 
+		// The follower count, re-checked by the player while that slide is up.
+		register_rest_route(
+			self::NS,
+			'/player/instagram-followers',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'instagram_followers' ),
+				'permission_callback' => array( self::class, 'authorize' ),
+				'args'                => $key_arg,
+			)
+		);
+
 		register_rest_route(
 			self::NS,
 			'/player/heartbeat',
@@ -84,6 +97,16 @@ final class Player_Controller {
 
 	public static function playlist(): \WP_REST_Response {
 		return new \WP_REST_Response( Resolver::playlist() );
+	}
+
+	public static function instagram_followers(): \WP_REST_Response {
+		$profile = Instagram::profile();
+		return new \WP_REST_Response(
+			array(
+				'followers' => isset( $profile['followers_count'] ) ? (int) $profile['followers_count'] : null,
+				'username'  => (string) ( $profile['username'] ?? '' ),
+			)
+		);
 	}
 
 	public static function heartbeat( \WP_REST_Request $request ): \WP_REST_Response {

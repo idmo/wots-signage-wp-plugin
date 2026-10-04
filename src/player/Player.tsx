@@ -612,8 +612,15 @@ export function mediaUrls( item: PlaylistItem ): string[] {
 				'featured_image',
 				'book_cover',
 				'reader_photo',
+				'media',
+				'profile_photo',
 			] ) {
 				add( fields[ key ] );
+			}
+			const poster = ( fields.media as { poster?: string } | null )
+				?.poster;
+			if ( poster ) {
+				urls.push( poster );
 			}
 		}
 	}

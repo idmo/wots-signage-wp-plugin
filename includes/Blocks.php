@@ -80,7 +80,9 @@ final class Blocks {
 				if ( ! $source ) {
 					$issue = 'No data source';
 				} elseif ( ! $source->is_available() ) {
-					$issue = $source->label() . ' plugin is not active';
+					$issue = str_starts_with( $source->key(), 'instagram' )
+						? 'Instagram isn’t connected (Signage → Settings)'
+						: $source->label() . ' plugin is not active';
 				}
 				break;
 		}

@@ -60,6 +60,89 @@ final class Admin_Menu {
 	public static function register_handlers(): void {
 		add_action( 'admin_post_wots_signage_rotate_key', array( self::class, 'rotate_key' ) );
 		add_action( 'admin_post_wots_signage_save_settings', array( self::class, 'save_settings' ) );
+		add_action( 'admin_post_wots_signage_instagram_connect', array( self::class, 'instagram_connect' ) );
+		add_action( 'admin_post_wots_signage_instagram_disconnect', array( self::class, 'instagram_disconnect' ) );
+	}
+
+	public static function instagram_connect(): void {
+		if ( ! current_user_can( Plugin::CAPABILITY ) ) {
+			wp_die( 'Not allowed.' );
+		}
+		check_admin_referer( 'wots_signage_instagram' );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- a token; trimmed and only sent to Instagram.
+		$token  = isset( $_POST['instagram_token'] ) ? trim( wp_unslash( (string) $_POST['instagram_token'] ) ) : '';
+		$result = Instagram::connect( preg_replace( '/\s+/', '', $token ) );
+		$args   = is_wp_error( $result )
+			? array( 'ig_error' => rawurlencode( $result->get_error_message() ) )
+			: array( 'ig_connected' => 1 );
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php?page=' . self::SLUG . '-settings' ) ) . '#instagram' );
+		exit;
+	}
+
+	public static function instagram_disconnect(): void {
+		if ( ! current_user_can( Plugin::CAPABILITY ) ) {
+			wp_die( 'Not allowed.' );
+		}
+		check_admin_referer( 'wots_signage_instagram' );
+		Instagram::disconnect();
+		wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG . '-settings' ) . '#instagram' );
+		exit;
+	}
+
+	/**
+	 * The Instagram section of Settings: connect with a token, or show who
+	 * we're connected as.
+	 */
+	private static function render_instagram(): void {
+		$status = Instagram::status();
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags.
+		$error     = isset( $_GET['ig_error'] ) ? sanitize_text_field( wp_unslash( $_GET['ig_error'] ) ) : '';
+		$connected = isset( $_GET['ig_connected'] );
+		// phpcs:enable
+		$action = esc_url( admin_url( 'admin-post.php' ) );
+		?>
+		<h2 id="instagram">Instagram</h2>
+		<?php if ( $error ) : ?>
+			<div class="notice notice-error inline"><p><?php echo esc_html( $error ); ?></p></div>
+		<?php elseif ( $connected ) : ?>
+			<div class="notice notice-success inline"><p>Connected. Add an Instagram Posts or Instagram Followers block to a show.</p></div>
+		<?php endif; ?>
+
+		<?php if ( $status['connected'] ) : ?>
+			<?php $profile = Instagram::profile(); ?>
+			<p>
+				Connected as <strong>@<?php echo esc_html( $status['username'] ); ?></strong>
+				<?php if ( isset( $profile['followers_count'] ) ) : ?>
+					· <?php echo esc_html( number_format_i18n( (int) $profile['followers_count'] ) ); ?> followers
+				<?php endif; ?>
+			</p>
+			<p class="description">
+				<?php
+				$until = $status['expires'] ? ' (current one valid until ' . wp_date( (string) get_option( 'date_format' ), $status['expires'] ) . ')' : '';
+				echo esc_html( 'The access token renews itself automatically' . $until . '.' );
+				?>
+			</p>
+			<?php if ( $status['error'] ) : ?>
+				<div class="notice notice-warning inline"><p>Last problem talking to Instagram: <?php echo esc_html( $status['error'] ); ?></p></div>
+			<?php endif; ?>
+			<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>">
+				<?php wp_nonce_field( 'wots_signage_instagram' ); ?>
+				<input type="hidden" name="action" value="wots_signage_instagram_disconnect">
+				<?php submit_button( 'Disconnect Instagram', 'secondary', 'ig_disconnect', false ); ?>
+			</form>
+		<?php else : ?>
+			<p>Show your latest posts and live follower count on the TV. Needs an Instagram <strong>Business or Creator</strong> account (free to switch in the Instagram app) and an access token from a Meta developer app. See “Instagram” in the plugin’s README for the steps.</p>
+			<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>">
+				<?php wp_nonce_field( 'wots_signage_instagram' ); ?>
+				<input type="hidden" name="action" value="wots_signage_instagram_connect">
+				<p>
+					<label for="instagram_token">Access token</label><br>
+					<input type="password" name="instagram_token" id="instagram_token" class="large-text code" autocomplete="off" spellcheck="false">
+				</p>
+				<?php submit_button( 'Connect Instagram', 'primary', 'ig_connect', false ); ?>
+			</form>
+		<?php endif; ?>
+		<?php
 	}
 
 	public static function enqueue( string $hook ): void {
@@ -193,6 +276,8 @@ final class Admin_Menu {
 				<p class="description">Categories can override the default duration (Signage → Categories).</p>
 				<?php submit_button( 'Save settings' ); ?>
 			</form>
+
+			<?php self::render_instagram(); ?>
 		</div>
 		<?php
 	}

@@ -22,7 +22,7 @@ final class Registry {
 	 */
 	public static function all(): array {
 		if ( null === self::$sources ) {
-			$list = apply_filters( 'wots_signage_data_sources', array( new Events(), new Community_Board(), new Featured_Readers() ) );
+			$list = apply_filters( 'wots_signage_data_sources', array( new Events(), new Community_Board(), new Featured_Readers(), new Instagram_Posts(), new Instagram_Followers() ) );
 
 			self::$sources = array();
 			foreach ( (array) $list as $source ) {
@@ -51,6 +51,8 @@ final class Registry {
 				// Every source can also show text typed into the template.
 				'elements'   => array_merge( $source->elements(), array( Helpers::text_element() ) ),
 				'taxonomies' => $source instanceof Filterable ? $source->taxonomies() : array(),
+				// Sources that always give one item (no "Show up to", no List).
+				'single'     => method_exists( $source, 'single' ) && $source->single(),
 			);
 		}
 		return $out;

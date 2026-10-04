@@ -11,6 +11,14 @@ export interface ImageAsset {
 	alt?: string;
 }
 
+/** An Instagram post's photo or video (DataSources/Instagram_Posts.php). */
+export interface MediaAsset {
+	kind: 'image' | 'video';
+	url: string;
+	/** Cover image for videos. */
+	poster: string | null;
+}
+
 export interface VideoAsset {
 	id: number;
 	url: string;

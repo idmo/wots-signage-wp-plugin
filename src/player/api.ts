@@ -89,6 +89,8 @@ export interface VersionResponse {
 export const fetchVersion = () =>
 	request< VersionResponse >( 'player/version' );
 export const fetchPlaylist = () => request< Playlist >( 'player/playlist' );
+export const fetchFollowers = () =>
+	request< { followers: number | null } >( 'player/instagram-followers' );
 export const sendHeartbeat = ( body: Record< string, unknown > ) =>
 	request< { ok: boolean } >( 'player/heartbeat', {
 		method: 'POST',

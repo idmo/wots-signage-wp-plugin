@@ -26,6 +26,7 @@ const MAX_DEFAULTS: Record< string, string > = {
 	events: '5',
 	community_board: '10',
 	featured_readers: '20',
+	instagram: '6',
 };
 
 const int = ( v: string ) => Math.max( 0, parseInt( v, 10 ) || 0 );
@@ -48,7 +49,8 @@ export function DynamicSettings( {
 	itemDefault: number;
 } ) {
 	const source = dataSources.find( ( s ) => s.key === meta._data_source );
-	const isList = meta._display_mode === 'list';
+	const single = !! source?.single;
+	const isList = ! single && meta._display_mode === 'list';
 	const isEvents = meta._data_source === 'events';
 	const eventRange = isEvents ? meta._event_range || 'next' : 'next';
 	const usable = templates.filter(
@@ -73,32 +75,35 @@ export function DynamicSettings( {
 						setMeta( { _data_source: v, _template_id: 0 } )
 					}
 				/>
-				<SelectControl
-					__next40pxDefaultSize
-					__nextHasNoMarginBottom
-					label="Display"
-					value={ meta._display_mode || 'carousel' }
-					options={ [
-						{
-							value: 'carousel',
-							label: 'Carousel: one item per slide',
-						},
-						{
-							value: 'list',
-							label: 'List: all items on one slide',
-						},
-					] }
-					onChange={ ( v ) =>
-						setMeta( {
-							_display_mode: v as Meta[ '_display_mode' ],
-						} )
-					}
-				/>
+				{ ! single && (
+					<SelectControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						label="Display"
+						value={ meta._display_mode || 'carousel' }
+						options={ [
+							{
+								value: 'carousel',
+								label: 'Carousel: one item per slide',
+							},
+							{
+								value: 'list',
+								label: 'List: all items on one slide',
+							},
+						] }
+						onChange={ ( v ) =>
+							setMeta( {
+								_display_mode: v as Meta[ '_display_mode' ],
+							} )
+						}
+					/>
+				) }
 			</div>
 			{ source && ! source.available && (
 				<Notice status="warning" isDismissible={ false }>
-					{ source.label } isn’t available on this site (its plugin or
-					post type is missing), so this block will be skipped.
+					{ source.key.startsWith( 'instagram' )
+						? 'Instagram isn’t connected yet. Connect it in Signage → Settings; until then this block is skipped.'
+						: `${ source.label } isn’t available on this site (its plugin or post type is missing), so this block will be skipped.` }
 				</Notice>
 			) }
 
@@ -107,26 +112,30 @@ export function DynamicSettings( {
 			) }
 
 			<div className="wots-row">
-				<TextControl
-					__next40pxDefaultSize
-					__nextHasNoMarginBottom
-					type="number"
-					min={ 1 }
-					max={ 100 }
-					label="Show up to"
-					help={
-						eventRange === 'next'
-							? 'events'
-							: 'Optional cap. Blank = every event in range.'
-					}
-					placeholder={
-						eventRange === 'next'
-							? ( MAX_DEFAULTS[ meta._data_source ] ?? '10' )
-							: 'All'
-					}
-					value={ String( meta._max_items || '' ) }
-					onChange={ ( v ) => setMeta( { _max_items: int( v ) } ) }
-				/>
+				{ ! single && (
+					<TextControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						type="number"
+						min={ 1 }
+						max={ 100 }
+						label="Show up to"
+						help={
+							eventRange === 'next'
+								? 'items'
+								: 'Optional cap. Blank = every event in range.'
+						}
+						placeholder={
+							eventRange === 'next'
+								? ( MAX_DEFAULTS[ meta._data_source ] ?? '10' )
+								: 'All'
+						}
+						value={ String( meta._max_items || '' ) }
+						onChange={ ( v ) =>
+							setMeta( { _max_items: int( v ) } )
+						}
+					/>
+				) }
 				{ isList ? (
 					<TextControl
 						__next40pxDefaultSize
