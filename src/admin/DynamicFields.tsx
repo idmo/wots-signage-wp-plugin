@@ -1,5 +1,6 @@
 import {
 	BaseControl,
+	CheckboxControl,
 	Notice,
 	RangeControl,
 	SelectControl,
@@ -8,9 +9,11 @@ import {
 import { useEffect, useState } from '@wordpress/element';
 import {
 	adminConfig,
+	getSourceTerms,
 	previewSource,
 	type BlockRecord,
 	type DataSourceInfo,
+	type TaxonomyTerms,
 	type TemplateSummary,
 } from './api';
 import { MediaPicker } from './MediaPicker';
@@ -46,6 +49,8 @@ export function DynamicSettings( {
 } ) {
 	const source = dataSources.find( ( s ) => s.key === meta._data_source );
 	const isList = meta._display_mode === 'list';
+	const isEvents = meta._data_source === 'events';
+	const eventRange = isEvents ? meta._event_range || 'next' : 'next';
 	const usable = templates.filter(
 		( t ) => t.data_source === meta._data_source
 	);
@@ -97,6 +102,10 @@ export function DynamicSettings( {
 				</Notice>
 			) }
 
+			{ isEvents && (
+				<EventRangeFields meta={ meta } setMeta={ setMeta } />
+			) }
+
 			<div className="wots-row">
 				<TextControl
 					__next40pxDefaultSize
@@ -105,8 +114,16 @@ export function DynamicSettings( {
 					min={ 1 }
 					max={ 100 }
 					label="Show up to"
-					help="items"
-					placeholder={ MAX_DEFAULTS[ meta._data_source ] ?? '10' }
+					help={
+						eventRange === 'next'
+							? 'events'
+							: 'Optional cap. Blank = every event in range.'
+					}
+					placeholder={
+						eventRange === 'next'
+							? ( MAX_DEFAULTS[ meta._data_source ] ?? '10' )
+							: 'All'
+					}
 					value={ String( meta._max_items || '' ) }
 					onChange={ ( v ) => setMeta( { _max_items: int( v ) } ) }
 				/>
@@ -183,22 +200,215 @@ export function DynamicSettings( {
 			{ meta._data_source === 'featured_readers' && (
 				<MonthField meta={ meta } setMeta={ setMeta } />
 			) }
+
+			{ source && Object.keys( source.taxonomies ?? {} ).length > 0 && (
+				<TermFilter
+					sourceKey={ source.key }
+					meta={ meta }
+					setMeta={ setMeta }
+				/>
+			) }
+
+			<MatchCount meta={ meta } />
 		</div>
 	);
 }
 
+const RANGE_OPTIONS = [
+	{ value: 'next', label: 'The next few events' },
+	{ value: 'days', label: 'Every event in the next … days' },
+	{ value: 'month', label: 'Every event left this month' },
+	{ value: 'dates', label: 'Every event between two dates' },
+];
+
 /**
- * Featured Readers "Month & Year": blank = current month. Shows how many
- * recommendations match, so a typo is obvious right away.
+ * Which events: the next N, or everything in a window. A busy month and
+ * a quiet season both fill the screen sensibly.
  */
-function MonthField( { meta, setMeta }: { meta: Meta; setMeta: SetMeta } ) {
+function EventRangeFields( {
+	meta,
+	setMeta,
+}: {
+	meta: Meta;
+	setMeta: SetMeta;
+} ) {
+	const range = meta._event_range || 'next';
+	return (
+		<div className="wots-row">
+			<SelectControl
+				__next40pxDefaultSize
+				__nextHasNoMarginBottom
+				label="Which events"
+				value={ range }
+				options={ RANGE_OPTIONS }
+				onChange={ ( v ) =>
+					setMeta( {
+						_event_range: v as Meta[ '_event_range' ],
+						// "Show up to 5" made sense for "next few"; a range
+						// usually wants everything.
+						_max_items:
+							v === 'next' || range !== 'next'
+								? meta._max_items
+								: 0,
+					} )
+				}
+			/>
+			{ range === 'days' && (
+				<TextControl
+					__next40pxDefaultSize
+					__nextHasNoMarginBottom
+					type="number"
+					min={ 1 }
+					max={ 366 }
+					label="Days ahead"
+					placeholder="30"
+					help="Including today. Blank = 30."
+					value={ meta._range_days ? String( meta._range_days ) : '' }
+					onChange={ ( v ) => setMeta( { _range_days: int( v ) } ) }
+				/>
+			) }
+			{ range === 'dates' && (
+				<>
+					<TextControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						type="date"
+						label="From"
+						help="Blank = today"
+						value={ meta._range_start }
+						onChange={ ( v ) => setMeta( { _range_start: v } ) }
+					/>
+					<TextControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						type="date"
+						label="To"
+						help="Blank = no end"
+						value={ meta._range_end }
+						onChange={ ( v ) => setMeta( { _range_end: v } ) }
+					/>
+				</>
+			) }
+		</div>
+	);
+}
+
+function parseFilter( json: string ): Record< string, number[] > {
+	try {
+		const v = JSON.parse( json || '{}' );
+		return v && typeof v === 'object' && ! Array.isArray( v ) ? v : {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * "Only show items in…": the source's own categories, tags, etc. Within a
+ * taxonomy any ticked term matches; across taxonomies all must match.
+ */
+function TermFilter( {
+	sourceKey,
+	meta,
+	setMeta,
+}: {
+	sourceKey: string;
+	meta: Meta;
+	setMeta: SetMeta;
+} ) {
+	const [ groups, setGroups ] = useState< TaxonomyTerms[] | null >( null );
+	const filter = parseFilter( meta._term_filter );
+
+	useEffect( () => {
+		let live = true;
+		setGroups( null );
+		getSourceTerms( sourceKey )
+			.then( ( g ) => live && setGroups( g ) )
+			.catch( () => live && setGroups( [] ) );
+		return () => {
+			live = false;
+		};
+	}, [ sourceKey ] );
+
+	const toggle = ( taxonomy: string, id: number, on: boolean ) => {
+		const current = filter[ taxonomy ] ?? [];
+		const next = {
+			...filter,
+			[ taxonomy ]: on
+				? [ ...current, id ]
+				: current.filter( ( x ) => x !== id ),
+		};
+		Object.keys( next ).forEach( ( k ) => {
+			if ( ! next[ k ].length ) {
+				delete next[ k ];
+			}
+		} );
+		setMeta( {
+			_term_filter: Object.keys( next ).length
+				? JSON.stringify( next )
+				: '',
+		} );
+	};
+
+	const withTerms = ( groups ?? [] ).filter( ( g ) => g.terms.length > 0 );
+	if ( groups && withTerms.length === 0 ) {
+		return null;
+	}
+
+	return (
+		<fieldset className="wots-fieldset wots-filter">
+			<legend>Only show items in…</legend>
+			<p className="wots-hint">
+				Nothing ticked = everything. Tick more than one to include any
+				of them.
+			</p>
+			{ ! groups && <p className="wots-subtle">Loading…</p> }
+			{ withTerms.map( ( g ) => (
+				<div key={ g.taxonomy } className="wots-filter__group">
+					<strong>{ g.label }</strong>
+					<div className="wots-checks wots-filter__terms">
+						{ g.terms.map( ( t ) => (
+							<CheckboxControl
+								key={ t.id }
+								__nextHasNoMarginBottom
+								label={ `${ t.name } (${ t.count })` }
+								checked={ (
+									filter[ g.taxonomy ] ?? []
+								).includes( t.id ) }
+								onChange={ ( on ) =>
+									toggle( g.taxonomy, t.id, on )
+								}
+							/>
+						) ) }
+					</div>
+				</div>
+			) ) }
+		</fieldset>
+	);
+}
+
+/** "N items match right now" for the block's current choices. */
+function MatchCount( { meta }: { meta: Meta } ) {
 	const [ count, setCount ] = useState< number | null >( null );
-	const value = meta._featured_month_year;
+	const key = meta._data_source;
+	const deps = [
+		key,
+		meta._event_range,
+		meta._range_days,
+		meta._range_start,
+		meta._range_end,
+		meta._term_filter,
+		meta._max_items,
+		meta._featured_month_year,
+	].join( '|' );
 
 	useEffect( () => {
 		let live = true;
 		const t = window.setTimeout( () => {
-			previewSource( 'featured_readers', value )
+			previewSource( key, {
+				monthYear: meta._featured_month_year,
+				max: meta._max_items || 100,
+				meta,
+			} )
 				.then( ( r ) => live && setCount( r.items.length ) )
 				.catch( () => live && setCount( null ) );
 		}, 400 );
@@ -206,21 +416,34 @@ function MonthField( { meta, setMeta }: { meta: Meta; setMeta: SetMeta } ) {
 			live = false;
 			window.clearTimeout( t );
 		};
-	}, [ value ] );
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- deps is the meta that matters.
+	}, [ deps ] );
 
-	let help =
-		'Blank = whatever month it is. Or pin a month, e.g. “September 2025”.';
-	if ( count !== null ) {
-		help += ` ${ count } recommendation${ count === 1 ? '' : 's' } match right now.`;
+	if ( count === null || ! key ) {
+		return null;
 	}
+	return (
+		<p className="wots-match">
+			{ count === 0
+				? 'Nothing matches right now, so this block will be skipped.'
+				: `${ count } item${ count === 1 ? '' : 's' } match right now.` }
+		</p>
+	);
+}
+
+/**
+ * Featured Readers "Month & Year": blank = current month. The match count
+ * below the fields makes a typo obvious right away.
+ */
+function MonthField( { meta, setMeta }: { meta: Meta; setMeta: SetMeta } ) {
 	return (
 		<TextControl
 			__next40pxDefaultSize
 			__nextHasNoMarginBottom
 			label="Month & Year"
 			placeholder="Current month"
-			help={ help }
-			value={ value }
+			help="Blank = whatever month it is. Or pin a month, e.g. “September 2025”."
+			value={ meta._featured_month_year }
 			onChange={ ( v ) => setMeta( { _featured_month_year: v } ) }
 		/>
 	);
@@ -269,7 +492,7 @@ export function PanelSettings( {
 				__nextHasNoMarginBottom
 				id="wots-bg"
 				label="Background image"
-				help="Fills the screen behind the panel."
+				help="Fills the screen behind the panel. A template set to use each item’s own image shows that instead, when the item has one."
 			>
 				<MediaPicker
 					kind="image"

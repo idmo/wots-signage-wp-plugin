@@ -1,4 +1,5 @@
 @import "../shared/slides.css";
+@import "../shared/playback.css";
 
 html,
 body {
@@ -23,41 +24,6 @@ body {
 .wots-player-message small {
 	font-size: 0.4em;
 	opacity: 0.6;
-}
-
-/* Block transitions (cut / crossfade / slide / zoom), ported from the
-   Next.js player. The incoming layer animates in over the outgoing one. */
-.wots-layer {
-	position: absolute;
-	inset: 0;
-	overflow: hidden;
-	animation-timing-function: ease-in-out;
-	animation-fill-mode: both;
-}
-
-.wots-in-crossfade { animation-name: wots-in-crossfade; }
-.wots-out-crossfade { animation-name: wots-out-crossfade; }
-.wots-in-slide { animation-name: wots-in-slide; }
-.wots-out-slide { animation-name: wots-out-slide; }
-.wots-in-zoom { animation-name: wots-in-zoom; }
-.wots-out-zoom { animation-name: wots-out-zoom; }
-
-@keyframes wots-in-crossfade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes wots-out-crossfade { from { opacity: 1; } to { opacity: 0; } }
-@keyframes wots-in-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes wots-out-slide { from { transform: translateX(0); } to { transform: translateX(-100%); } }
-@keyframes wots-in-zoom { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
-@keyframes wots-out-zoom { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.08); } }
-
-.wots-idle {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	align-items: flex-end;
-	justify-content: flex-end;
-	padding: 48px 64px;
-	color: rgba(255, 255, 255, 0.35);
-	font: 500 28px/1 system-ui, sans-serif;
 }
 
 .wots-status-dot {

@@ -21,20 +21,30 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
 	Button,
+	RangeControl,
 	Notice,
 	SelectControl,
 	TextControl,
+	TextareaControl,
 } from '@wordpress/components';
-import { useEffect, useMemo, useState } from '@wordpress/element';
-import { PanelBox } from '../shared/Panel';
+import { useEffect, useMemo, useRef, useState } from '@wordpress/element';
+import { PanelBackground, PanelBox, itemBackground } from '../shared/Panel';
 import { Stage } from '../shared/Stage';
 import { TemplateSlide } from '../shared/TemplateSlide';
 import {
 	REGION_LABELS,
 	TEMPLATE_LAYOUTS,
+	clampSplit,
+	gridStyle,
 	type LayoutId,
 } from '../shared/templates';
-import type { ElementPlacement, Fields, PanelStyle } from '../shared/types';
+import {
+	DEFAULT_DESIGN,
+	type ElementPlacement,
+	type Fields,
+	type PanelStyle,
+	type TemplateDesign,
+} from '../shared/types';
 import {
 	adminConfig,
 	deleteTemplate,
@@ -88,6 +98,10 @@ export function TemplateBuilder( {
 	const [ placements, setPlacements ] = useState< Placements >(
 		fitToLayout( initial.placements, initial.layout )
 	);
+	const [ design, setDesign ] = useState< TemplateDesign >( {
+		...DEFAULT_DESIGN,
+		...initial.design,
+	} );
 	const [ selectedRegion, setSelectedRegion ] = useState< string >(
 		TEMPLATE_LAYOUTS[ initial.layout ].regions[ 0 ]
 	);
@@ -113,6 +127,13 @@ export function TemplateBuilder( {
 		setDirty( true );
 	};
 
+	const updateDesign = ( patch: Partial< TemplateDesign > ) => {
+		setDesign( ( d ) => ( { ...d, ...patch } ) );
+		setDirty( true );
+	};
+
+	const imageElements = palette.filter( ( e ) => e.type === 'image' );
+
 	const changeLayout = ( next: LayoutId ) => {
 		setLayout( next );
 		update( fitToLayout( placements, next ) );
@@ -132,11 +153,22 @@ export function TemplateBuilder( {
 		);
 		setSource( next );
 		update( kept );
+		// The background element belongs to the old source.
+		if ( design.background && ! allowed.has( design.background ) ) {
+			updateDesign( { background: '' } );
+		}
 	};
 
 	const addTo = ( region: string, key: string, index?: number ) => {
 		const list = [ ...( placements[ region ] ?? [] ) ];
-		list.splice( index ?? list.length, 0, { element: key, options: {} } );
+		list.splice( index ?? list.length, 0, {
+			element: key,
+			// New "Text" elements start with a common call to action.
+			options:
+				key === 'free_text'
+					? { text: 'Scan for details', role: 'meta' }
+					: {},
+		} );
 		update( { ...placements, [ region ]: list } );
 	};
 
@@ -240,6 +272,7 @@ export function TemplateBuilder( {
 				data_source: source,
 				layout,
 				placements,
+				design,
 			} );
 			setDirty( false );
 			onSaved( res.id );
@@ -378,6 +411,72 @@ export function TemplateBuilder( {
 							)
 						) }
 					</div>
+
+					{ layout !== 'full' && (
+						<>
+							<RangeControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label="First column width (%)"
+								help="Or drag the handles between regions."
+								min={ 15 }
+								max={ 85 }
+								value={ design.col }
+								onChange={ ( v ) =>
+									updateDesign( { col: clampSplit( v ) } )
+								}
+							/>
+							<RangeControl
+								__next40pxDefaultSize
+								__nextHasNoMarginBottom
+								label="First row height (%)"
+								min={ 15 }
+								max={ 85 }
+								value={ design.row }
+								onChange={ ( v ) =>
+									updateDesign( { row: clampSplit( v ) } )
+								}
+							/>
+						</>
+					) }
+
+					<SelectControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						label="Full-screen background"
+						value={ design.background }
+						options={ [
+							{
+								value: '',
+								label: 'Block’s background image',
+							},
+							...imageElements.map( ( e ) => ( {
+								value: e.key,
+								label: `Each item’s ${ e.label }`,
+							} ) ),
+						] }
+						help={
+							design.background
+								? 'Changes with every item. Items without one fall back to the block’s background image.'
+								: 'Set per block, in the block’s Look settings.'
+						}
+						onChange={ ( v ) => updateDesign( { background: v } ) }
+					/>
+					{ design.background && (
+						<RangeControl
+							__next40pxDefaultSize
+							__nextHasNoMarginBottom
+							label="Darken background (%)"
+							help="Helps text stay readable over busy photos."
+							min={ 0 }
+							max={ 90 }
+							step={ 5 }
+							value={ design.dim }
+							onChange={ ( v ) =>
+								updateDesign( { dim: v ?? 0 } )
+							}
+						/>
+					) }
 				</div>
 
 				<DndContext
@@ -409,12 +508,10 @@ export function TemplateBuilder( {
 							</div>
 						</div>
 
-						<div
-							className="wots-regions"
-							style={ {
-								gridTemplateAreas:
-									TEMPLATE_LAYOUTS[ layout ].areas,
-							} }
+						<RegionGrid
+							layout={ layout }
+							design={ design }
+							onResize={ updateDesign }
 						>
 							{ regions.map( ( r ) => (
 								<RegionBox
@@ -431,7 +528,7 @@ export function TemplateBuilder( {
 									}
 								/>
 							) ) }
-						</div>
+						</RegionGrid>
 					</div>
 					<DragOverlay>
 						{ dragLabel ? (
@@ -447,8 +544,105 @@ export function TemplateBuilder( {
 				source={ source }
 				layout={ layout }
 				placements={ placements }
+				design={ design }
 				types={ types }
 			/>
+		</div>
+	);
+}
+
+/**
+ * The builder's regions in the template's proportions, with drag handles
+ * on the column and row splits. Handles also work with the arrow keys.
+ */
+function RegionGrid( {
+	layout,
+	design,
+	onResize,
+	children,
+}: {
+	layout: LayoutId;
+	design: TemplateDesign;
+	onResize: ( patch: Partial< TemplateDesign > ) => void;
+	children: React.ReactNode;
+} ) {
+	const ref = useRef< HTMLDivElement | null >( null );
+	const style = gridStyle( layout, design );
+	const { col, row } = design;
+
+	const drag =
+		( axis: 'col' | 'row' ) => ( e: React.PointerEvent< HTMLElement > ) => {
+			const box = ref.current?.getBoundingClientRect();
+			if ( ! box ) {
+				return;
+			}
+			e.preventDefault();
+			const target = e.currentTarget;
+			target.setPointerCapture( e.pointerId );
+			const move = ( ev: PointerEvent ) => {
+				const pct =
+					axis === 'col'
+						? ( ( ev.clientX - box.left ) / box.width ) * 100
+						: ( ( ev.clientY - box.top ) / box.height ) * 100;
+				onResize( { [ axis ]: clampSplit( pct ) } );
+			};
+			const up = () => {
+				target.removeEventListener( 'pointermove', move );
+				target.removeEventListener( 'pointerup', up );
+			};
+			target.addEventListener( 'pointermove', move );
+			target.addEventListener( 'pointerup', up );
+		};
+
+	const keys =
+		( axis: 'col' | 'row' ) =>
+		( e: React.KeyboardEvent< HTMLElement > ) => {
+			const back = axis === 'col' ? 'ArrowLeft' : 'ArrowUp';
+			const fwd = axis === 'col' ? 'ArrowRight' : 'ArrowDown';
+			if ( e.key !== back && e.key !== fwd ) {
+				return;
+			}
+			e.preventDefault();
+			const step = ( e.shiftKey ? 5 : 1 ) * ( e.key === fwd ? 1 : -1 );
+			onResize( { [ axis ]: clampSplit( design[ axis ] + step ) } );
+		};
+
+	// Where each handle sits (and how far it runs) for this layout.
+	let colSpan = { top: '0%', bottom: '0%' };
+	let rowSpan = { left: '0%', right: '0%' };
+	if ( layout === 'stack' ) {
+		colSpan = { top: `${ row }%`, bottom: '0%' };
+	} else if ( layout === 'split_left' ) {
+		rowSpan = { left: '0%', right: `${ 100 - col }%` };
+	} else if ( layout === 'split_right' ) {
+		rowSpan = { left: `${ col }%`, right: '0%' };
+	}
+
+	return (
+		<div className="wots-regions" ref={ ref } style={ style }>
+			{ children }
+			{ layout !== 'full' && (
+				<>
+					<button
+						type="button"
+						className="wots-split wots-split--col"
+						style={ { left: `${ col }%`, ...colSpan } }
+						aria-label={ `Column split, ${ col }%. Use arrow keys to resize.` }
+						title="Drag to resize the columns"
+						onPointerDown={ drag( 'col' ) }
+						onKeyDown={ keys( 'col' ) }
+					/>
+					<button
+						type="button"
+						className="wots-split wots-split--row"
+						style={ { top: `${ row }%`, ...rowSpan } }
+						aria-label={ `Row split, ${ row }%. Use arrow keys to resize.` }
+						title="Drag to resize the rows"
+						onPointerDown={ drag( 'row' ) }
+						onKeyDown={ keys( 'row' ) }
+					/>
+				</>
+			) }
 		</div>
 	);
 }
@@ -601,6 +795,7 @@ function PlacedElement( {
 	const opts = placement.options ?? {};
 	const set = ( patch: Partial< ElementPlacement[ 'options' ] > ) =>
 		onOptions( { ...opts, ...patch } );
+	const isText = type === 'static';
 
 	return (
 		<div
@@ -620,9 +815,11 @@ function PlacedElement( {
 			>
 				⋮⋮
 			</button>
-			<span className="wots-placed__label">{ label }</span>
+			<span className="wots-placed__label">
+				{ isText ? `Text: ${ opts.text || '(empty)' }` : label }
+			</span>
 			<span className="wots-placed__opts">
-				{ ( type === 'text' || type === 'html' ) && (
+				{ ( type === 'text' || type === 'html' || isText ) && (
 					<span className="wots-seg" role="group" aria-label="Size">
 						{ SIZES.map( ( [ v, l ] ) => (
 							<button
@@ -697,6 +894,46 @@ function PlacedElement( {
 			>
 				×
 			</button>
+			{ isText && (
+				<div className="wots-placed__text">
+					<span className="wots-placed__style">
+						<span className="wots-subtle">Style like</span>
+						<span
+							className="wots-seg"
+							role="group"
+							aria-label="Text style"
+						>
+							{ (
+								[
+									[ 'title', 'Heading' ],
+									[ 'meta', 'Detail' ],
+									[ 'body', 'Body' ],
+								] as const
+							 ).map( ( [ v, l ] ) => (
+								<button
+									key={ v }
+									type="button"
+									aria-pressed={
+										( opts.role ?? 'meta' ) === v
+									}
+									onClick={ () => set( { role: v } ) }
+								>
+									{ l }
+								</button>
+							) ) }
+						</span>
+					</span>
+					<TextareaControl
+						__nextHasNoMarginBottom
+						label="Text"
+						hideLabelFromVision
+						rows={ 2 }
+						value={ opts.text ?? '' }
+						onChange={ ( v ) => set( { text: v } ) }
+						onKeyDown={ ( e ) => e.stopPropagation() }
+					/>
+				</div>
+			) }
 		</div>
 	);
 }
@@ -706,11 +943,13 @@ function TemplatePreview( {
 	source,
 	layout,
 	placements,
+	design,
 	types,
 }: {
 	source: string;
 	layout: LayoutId;
 	placements: Placements;
+	design: TemplateDesign;
 	types: Record< string, string >;
 } ) {
 	const [ items, setItems ] = useState<
@@ -718,7 +957,7 @@ function TemplatePreview( {
 	>( [] );
 	const [ index, setIndex ] = useState( 0 );
 	const [ loading, setLoading ] = useState( true );
-	const { settings } = adminConfig();
+	const { settings, stage } = adminConfig();
 
 	useEffect( () => {
 		let live = true;
@@ -748,6 +987,8 @@ function TemplatePreview( {
 		animation_ms: 0,
 	};
 	const item = items[ index ];
+	const template = { layout, regions: placements, design };
+	const bg = itemBackground( template, item?.fields );
 
 	return (
 		<div className="wots-tpl-preview">
@@ -785,13 +1026,28 @@ function TemplatePreview( {
 					look.
 				</span>
 			</div>
-			<div className="wots-tpl-preview__frame">
+			<div
+				className="wots-tpl-preview__frame"
+				style={ {
+					aspectRatio: `${ stage.width } / ${ stage.height }`,
+				} }
+			>
 				{ item ? (
-					<Stage fill="parent">
-						<div className="wots-panel-bg" />
-						<PanelBox panel={ panel } wide contentKey="preview">
+					<Stage fill="parent" size={ stage }>
+						<PanelBackground
+							panel={ panel }
+							image={ bg.image }
+							dim={ bg.dim }
+						/>
+						<PanelBox
+							panel={
+								bg.image ? { ...panel, opacity: 55 } : panel
+							}
+							wide
+							contentKey="preview"
+						>
 							<TemplateSlide
-								template={ { layout, regions: placements } }
+								template={ template }
 								fields={ {
 									block_name: 'Block Name',
 									...item.fields,

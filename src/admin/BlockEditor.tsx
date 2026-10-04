@@ -26,6 +26,7 @@ import {
 	MotionSettings,
 	PanelSettings,
 } from './DynamicFields';
+import { BlockPreview } from './BlockPreview';
 import { MediaPicker } from './MediaPicker';
 
 interface Props {
@@ -67,6 +68,11 @@ const EMPTY: BlockRecord = {
 		_meta_color: '#ffffff',
 		_transition: '',
 		_content_animation: '',
+		_event_range: 'next',
+		_range_days: 0,
+		_range_start: '',
+		_range_end: '',
+		_term_filter: '',
 	},
 };
 
@@ -87,6 +93,7 @@ export function BlockEditor( {
 	const [ addToShow, setAddToShow ] = useState( true );
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
+	const [ previewing, setPreviewing ] = useState( false );
 	const { settings } = adminConfig();
 
 	useEffect( () => {
@@ -417,6 +424,14 @@ export function BlockEditor( {
 				) }
 				<span className="wots-spacer" />
 				<Button
+					variant="secondary"
+					icon="visibility"
+					onClick={ () => setPreviewing( true ) }
+					disabled={ saving }
+				>
+					Preview
+				</Button>
+				<Button
 					variant="tertiary"
 					onClick={ onClose }
 					disabled={ saving }
@@ -432,6 +447,15 @@ export function BlockEditor( {
 					{ isNew ? 'Create block' : 'Save' }
 				</Button>
 			</div>
+
+			{ previewing && (
+				<BlockPreview
+					blockId={ record.id ?? 0 }
+					record={ record }
+					title={ record.title }
+					onClose={ () => setPreviewing( false ) }
+				/>
+			) }
 		</Modal>
 	);
 }

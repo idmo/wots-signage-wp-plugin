@@ -4,12 +4,65 @@ namespace WOTS\Signage;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Shows (PRD §5). Phase 1 runs a single show; the live-sequence option is
- * already in place for multiple shows in Phase 2.
+ * Shows (PRD §5). The TV plays a lineup: one or more shows, back to back,
+ * in the order stored in LINEUP_OPTION. Installs from before 0.3 only had
+ * LIVE_OPTION (a single live show); it seeds the lineup once.
  */
 final class Sequences {
 
-	public const LIVE_OPTION = 'wots_signage_live_sequence';
+	public const LIVE_OPTION   = 'wots_signage_live_sequence';
+	public const LINEUP_OPTION = 'wots_signage_lineup';
+
+	/**
+	 * Show IDs playing on the TV, in order. Falls back to the single live
+	 * show (creating "Main Show" on a fresh install when $create is true).
+	 *
+	 * @return int[]
+	 */
+	public static function lineup( bool $create = false ): array {
+		$saved = get_option( self::LINEUP_OPTION, null );
+		if ( is_array( $saved ) ) {
+			return self::sanitize_lineup( $saved );
+		}
+		$live = self::live_id( $create );
+		return $live ? array( $live ) : array();
+	}
+
+	/**
+	 * Keep existing, published shows only, once each.
+	 *
+	 * @param array $ids Show IDs in play order.
+	 * @return int[]
+	 */
+	public static function sanitize_lineup( array $ids ): array {
+		$clean = array();
+		foreach ( $ids as $id ) {
+			$id = (int) $id;
+			if ( $id > 0 && ! in_array( $id, $clean, true ) && PostTypes::SEQUENCE === get_post_type( $id ) && 'publish' === get_post_status( $id ) ) {
+				$clean[] = $id;
+			}
+		}
+		return $clean;
+	}
+
+	/**
+	 * @param array $ids Show IDs in play order. Empty = nothing plays.
+	 * @return int[] What was saved.
+	 */
+	public static function save_lineup( array $ids ): array {
+		$clean = self::sanitize_lineup( $ids );
+		update_option( self::LINEUP_OPTION, $clean, false );
+		// Keep the old single-show option pointing at the first show for
+		// anything that still reads it.
+		if ( $clean ) {
+			update_option( self::LIVE_OPTION, $clean[0], false );
+		}
+		return $clean;
+	}
+
+	public static function in_lineup( int $sequence_id ): bool {
+		return in_array( $sequence_id, self::lineup(), true );
+	}
 
 	/**
 	 * The live show's ID. If none is set (fresh install), the first existing
@@ -90,8 +143,8 @@ final class Sequences {
 	}
 
 	public static function summaries(): array {
-		$live  = self::live_id();
-		$posts = get_posts(
+		$lineup = self::lineup();
+		$posts  = get_posts(
 			array(
 				'post_type'      => PostTypes::SEQUENCE,
 				'post_status'    => 'publish',
@@ -101,13 +154,18 @@ final class Sequences {
 			)
 		);
 		return array_map(
-			static fn( \WP_Post $p ) => array(
-				'id'       => $p->ID,
-				'title'    => html_entity_decode( get_the_title( $p ), ENT_QUOTES, 'UTF-8' ),
-				'count'    => count( self::items( $p->ID ) ),
-				'is_live'  => $p->ID === $live,
-				'modified' => get_post_modified_time( DATE_ATOM, true, $p ),
-			),
+			static function ( \WP_Post $p ) use ( $lineup ) {
+				$position = array_search( $p->ID, $lineup, true );
+				return array(
+					'id'       => $p->ID,
+					'title'    => html_entity_decode( get_the_title( $p ), ENT_QUOTES, 'UTF-8' ),
+					'count'    => count( self::items( $p->ID ) ),
+					'is_live'  => false !== $position,
+					// 1-based place in the TV lineup, 0 when not playing.
+					'position' => false === $position ? 0 : $position + 1,
+					'modified' => get_post_modified_time( DATE_ATOM, true, $p ),
+				);
+			},
 			$posts
 		);
 	}
@@ -133,11 +191,27 @@ final class Sequences {
 		return (int) $new_id;
 	}
 
+	/**
+	 * Make one show the whole lineup (the pre-0.3 "Go live").
+	 */
 	public static function activate( int $sequence_id ): bool {
 		if ( PostTypes::SEQUENCE !== get_post_type( $sequence_id ) ) {
 			return false;
 		}
-		update_option( self::LIVE_OPTION, $sequence_id, false );
+		self::save_lineup( array( $sequence_id ) );
 		return true;
+	}
+
+	/**
+	 * Drop a deleted or trashed show from the lineup.
+	 */
+	public static function forget( int $post_id ): void {
+		if ( PostTypes::SEQUENCE !== get_post_type( $post_id ) ) {
+			return;
+		}
+		$saved = get_option( self::LINEUP_OPTION, null );
+		if ( is_array( $saved ) && in_array( $post_id, array_map( 'intval', $saved ), true ) ) {
+			update_option( self::LINEUP_OPTION, array_values( array_diff( array_map( 'intval', $saved ), array( $post_id ) ) ), false );
+		}
 	}
 }

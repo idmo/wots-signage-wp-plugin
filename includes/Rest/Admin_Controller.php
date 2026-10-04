@@ -1,8 +1,11 @@
 <?php
 namespace WOTS\Signage\Rest;
 
+use WOTS\Signage\Block_Preview;
 use WOTS\Signage\Blocks;
 use WOTS\Signage\Import_Export;
+use WOTS\Signage\DataSources\Filterable;
+use WOTS\Signage\DataSources\Helpers;
 use WOTS\Signage\DataSources\Registry;
 use WOTS\Signage\Player_Route;
 use WOTS\Signage\Plugin;
@@ -30,6 +33,53 @@ final class Admin_Controller {
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => static fn() => new \WP_REST_Response( Blocks::summaries() ),
+				'permission_callback' => $perm,
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/blocks/preview',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( self::class, 'preview_block' ),
+				'permission_callback' => $perm,
+				'args'                => array(
+					'id'     => array(
+						'type'    => 'integer',
+						'default' => 0,
+					),
+					'record' => array(
+						'type'    => array( 'object', 'null' ),
+						'default' => null,
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/lineup',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( self::class, 'save_lineup' ),
+				'permission_callback' => $perm,
+				'args'                => array(
+					'shows' => array(
+						'type'     => 'array',
+						'required' => true,
+						'items'    => array( 'type' => 'integer' ),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/data-sources/(?P<key>[a-z0-9_-]+)/terms',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'source_terms' ),
 				'permission_callback' => $perm,
 			)
 		);
@@ -193,7 +243,8 @@ final class Admin_Controller {
 	}
 
 	public static function live_show(): \WP_REST_Response {
-		$id = Sequences::live_id( true );
+		$lineup = Sequences::lineup( true );
+		$id     = $lineup[0] ?? Sequences::live_id( true );
 		return new \WP_REST_Response(
 			array(
 				'id'      => $id,
@@ -214,7 +265,7 @@ final class Admin_Controller {
 				'id'      => $id,
 				'title'   => html_entity_decode( get_the_title( $id ), ENT_QUOTES, 'UTF-8' ),
 				'items'   => Sequences::items( $id ),
-				'is_live' => Sequences::live_id() === $id,
+				'is_live' => Sequences::in_lineup( $id ),
 			)
 		);
 	}
@@ -280,7 +331,8 @@ final class Admin_Controller {
 		if ( ! $source ) {
 			return new \WP_Error( 'wots_signage_not_found', 'Unknown data source.', array( 'status' => 404 ) );
 		}
-		$max = max( 1, min( 10, (int) ( $request->get_param( 'max_items' ) ?? 3 ) ) );
+		$max   = max( 1, min( 100, (int) ( $request->get_param( 'max_items' ) ?? 3 ) ) );
+		$terms = json_decode( (string) $request->get_param( 'terms' ), true );
 		return new \WP_REST_Response(
 			array(
 				'available' => $source->is_available(),
@@ -288,10 +340,37 @@ final class Admin_Controller {
 					array(
 						'max_items'           => $max,
 						'featured_month_year' => sanitize_text_field( (string) $request->get_param( 'featured_month_year' ) ),
+						'event_range'         => sanitize_key( (string) $request->get_param( 'event_range' ) ),
+						'range_days'          => (int) $request->get_param( 'range_days' ),
+						'range_start'         => sanitize_text_field( (string) $request->get_param( 'range_start' ) ),
+						'range_end'           => sanitize_text_field( (string) $request->get_param( 'range_end' ) ),
+						'terms'               => is_array( $terms ) ? $terms : array(),
 					)
 				),
 			)
 		);
+	}
+
+	public static function preview_block( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $request->get_param( 'record' );
+		return new \WP_REST_Response( Block_Preview::playlist( (int) $request->get_param( 'id' ), is_array( $record ) ? $record : null ) );
+	}
+
+	public static function save_lineup( \WP_REST_Request $request ): \WP_REST_Response {
+		return new \WP_REST_Response(
+			array(
+				'lineup' => Sequences::save_lineup( (array) $request->get_param( 'shows' ) ),
+				'shows'  => Sequences::summaries(),
+			)
+		);
+	}
+
+	public static function source_terms( \WP_REST_Request $request ) {
+		$source = Registry::get( (string) $request['key'] );
+		if ( ! $source ) {
+			return new \WP_Error( 'wots_signage_not_found', 'Unknown data source.', array( 'status' => 404 ) );
+		}
+		return new \WP_REST_Response( $source instanceof Filterable ? Helpers::describe_terms( $source->taxonomies() ) : array() );
 	}
 
 	public static function status(): \WP_REST_Response {

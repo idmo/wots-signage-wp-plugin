@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * recommendations play back to back. Book title, cover, and link come live
  * from the WooCommerce product.
  */
-final class Featured_Readers implements Data_Source {
+final class Featured_Readers implements Data_Source, Filterable {
 
 	public const DEFAULT_MAX = 20;
 
@@ -70,6 +70,24 @@ final class Featured_Readers implements Data_Source {
 	}
 
 	/**
+	 * The recommendation's own taxonomies, plus the book's (WooCommerce
+	 * product categories and tags).
+	 */
+	public function taxonomies(): array {
+		$f    = self::fields();
+		$book = Helpers::taxonomies_for( array( 'product' ), 'Book: ' );
+		foreach ( array(
+			'product_cat' => 'Book categories',
+			'product_tag' => 'Book tags',
+		) as $taxonomy => $label ) {
+			if ( isset( $book[ $taxonomy ] ) ) {
+				$book[ $taxonomy ] = $label;
+			}
+		}
+		return Helpers::taxonomies_for( array( (string) $f['recommendation_post_type'] ) ) + $book;
+	}
+
+	/**
 	 * Target month as "Y-m": the block's pinned "Month & Year", or the
 	 * current month in the site timezone. Null if the pin can't be parsed.
 	 */
@@ -112,7 +130,7 @@ final class Featured_Readers implements Data_Source {
 			return array();
 		}
 
-		$entries = $this->entries( $target );
+		$entries = $this->entries( $target, Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() ) );
 		$entries = self::group_by_reader( $entries );
 
 		$max = (int) ( $block_config['max_items'] ?? 0 );
@@ -124,7 +142,7 @@ final class Featured_Readers implements Data_Source {
 	 * Recommendations of every reader featured for $target, in the same
 	 * order the mu-plugin returned them.
 	 */
-	private function entries( string $target ): array {
+	private function entries( string $target, array $filter = array() ): array {
 		$f = self::fields();
 
 		$readers = array();
@@ -167,6 +185,9 @@ final class Featured_Readers implements Data_Source {
 			$product = $book_id ? wc_get_product( $book_id ) : null;
 			if ( ! $product ) {
 				continue; // Incomplete, or the product is gone: skip, don't fail.
+			}
+			if ( $filter && ! Helpers::matches_terms( $rec->ID, $filter, $book_id ) ) {
+				continue;
 			}
 
 			$reader = $readers[ $reader_id ];

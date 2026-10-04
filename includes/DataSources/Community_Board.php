@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  * start_date (date), end_date (datetime), website, and approved. The slugs
  * can be changed with the `wots_signage_community_board_fields` filter.
  */
-final class Community_Board implements Data_Source {
+final class Community_Board implements Data_Source, Filterable {
 
 	public const DEFAULT_MAX = 10;
 
@@ -61,8 +61,13 @@ final class Community_Board implements Data_Source {
 		);
 	}
 
+	public function taxonomies(): array {
+		return Helpers::taxonomies_for( array( (string) self::fields()['post_type'] ) );
+	}
+
 	public function items( array $block_config ): array {
-		$f = self::fields();
+		$f      = self::fields();
+		$filter = Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() );
 		if ( ! post_type_exists( (string) $f['post_type'] ) ) {
 			return array();
 		}
@@ -88,6 +93,9 @@ final class Community_Board implements Data_Source {
 			$starts = Helpers::local_timestamp( Helpers::meta( $post->ID, $f['start_date'] ) );
 			$ends   = Helpers::local_timestamp( Helpers::meta( $post->ID, $f['end_date'] ), true );
 			if ( ( $starts && $starts > $now ) || ( $ends && $ends < $now ) ) {
+				continue;
+			}
+			if ( $filter && ! Helpers::matches_terms( $post->ID, $filter ) ) {
 				continue;
 			}
 

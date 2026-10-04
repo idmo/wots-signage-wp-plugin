@@ -23,10 +23,13 @@ final class Plugin {
 		add_filter( 'rest_post_dispatch', array( Rest\Player_Controller::class, 'no_store' ), 10, 3 );
 
 		Version::register_hooks();
+		add_action( 'trashed_post', array( Sequences::class, 'forget' ) );
+		add_action( 'before_delete_post', array( Sequences::class, 'forget' ) );
 		Import_Export::register();
 		Updater::boot();
 
 		add_action( 'admin_menu', array( Admin_Menu::class, 'register' ) );
+		Admin_Menu::register_handlers();
 		add_action( 'admin_enqueue_scripts', array( Admin_Menu::class, 'enqueue' ) );
 		Admin_Menu::register_category_fields();
 	}

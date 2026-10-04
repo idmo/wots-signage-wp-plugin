@@ -1,4 +1,4 @@
-import type { Playlist } from '../shared/types';
+import type { Playlist, StageSize } from '../shared/types';
 
 export interface PlayerConfig {
 	restRoot: string;
@@ -7,6 +7,9 @@ export interface PlayerConfig {
 	authorized: boolean;
 	pollInterval: number;
 	brandColor: string;
+	stage: StageSize;
+	/** Where Esc goes for a logged-in admin; null for the kiosk. */
+	exitUrl: string | null;
 	build: string;
 	/** Only set for the real kiosk (keyed), not for admin previews. */
 	swUrl: string | null;

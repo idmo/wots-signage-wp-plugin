@@ -45,10 +45,12 @@ final class Registry {
 		$out = array();
 		foreach ( self::all() as $source ) {
 			$out[] = array(
-				'key'       => $source->key(),
-				'label'     => $source->label(),
-				'available' => $source->is_available(),
-				'elements'  => $source->elements(),
+				'key'        => $source->key(),
+				'label'      => $source->label(),
+				'available'  => $source->is_available(),
+				// Every source can also show text typed into the template.
+				'elements'   => array_merge( $source->elements(), array( Helpers::text_element() ) ),
+				'taxonomies' => $source instanceof Filterable ? $source->taxonomies() : array(),
 			);
 		}
 		return $out;

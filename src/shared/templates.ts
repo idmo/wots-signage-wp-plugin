@@ -1,8 +1,16 @@
+import type { CSSProperties } from 'react';
+import type { TemplateDesign } from './types';
+
 /**
  * Template Builder layouts (PRD §7). Mirrors includes/Templates.php and the
  * Next.js build's lib/templates.ts: a 2×2 CSS grid with named areas.
  */
 export const TEMPLATE_LAYOUTS = {
+	full: {
+		label: 'One region',
+		areas: '"main main" "main main"',
+		regions: [ 'main' ],
+	},
 	stack: {
 		label: 'Top, then 2 columns',
 		areas: '"top top" "bl br"',
@@ -22,7 +30,37 @@ export const TEMPLATE_LAYOUTS = {
 
 export type LayoutId = keyof typeof TEMPLATE_LAYOUTS;
 
+/** Which of the two splits a layout uses, for the resize handles. */
+export function layoutSplits( layout: LayoutId ): {
+	col: boolean;
+	row: boolean;
+} {
+	return { col: layout !== 'full', row: layout !== 'full' };
+}
+
+/** Grid styles for a layout with the template's region sizes. */
+export function gridStyle(
+	layout: LayoutId,
+	design?: Pick< TemplateDesign, 'col' | 'row' > | null
+): CSSProperties {
+	const l = TEMPLATE_LAYOUTS[ layout ] ?? TEMPLATE_LAYOUTS.stack;
+	const col = clampSplit( design?.col );
+	const row = clampSplit( design?.row );
+	return {
+		gridTemplateAreas: l.areas,
+		gridTemplateColumns: `minmax(0, ${ col }fr) minmax(0, ${ 100 - col }fr)`,
+		gridTemplateRows: `minmax(0, ${ row }fr) minmax(0, ${ 100 - row }fr)`,
+	};
+}
+
+export function clampSplit( v: number | undefined ): number {
+	return typeof v === 'number' && ! Number.isNaN( v )
+		? Math.min( 85, Math.max( 15, Math.round( v ) ) )
+		: 50;
+}
+
 export const REGION_LABELS: Record< string, string > = {
+	main: 'Whole panel',
 	top: 'Top',
 	bl: 'Bottom left',
 	br: 'Bottom right',

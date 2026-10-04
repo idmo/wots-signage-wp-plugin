@@ -8,10 +8,21 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Upcoming events from The Events Calendar (PRD §6.1), queried directly with
  * tribe_get_events(). Events that have ended drop out on their own.
+ *
+ * A block picks which events with event_range:
+ *   next   the next N events (max_items, default 5)
+ *   days   everything in the next range_days days (default 30)
+ *   month  everything left in this calendar month
+ *   dates  everything between range_start and range_end (Y-m-d)
+ * In the last three, max_items is an optional cap.
  */
-final class Events implements Data_Source {
+final class Events implements Data_Source, Filterable {
 
 	public const DEFAULT_MAX = 5;
+	public const RANGES      = array( 'next', 'days', 'month', 'dates' );
+
+	/** Safety cap when a range has no "Show up to". */
+	private const RANGE_CAP = 100;
 
 	public function key(): string {
 		return 'events';
@@ -37,31 +48,86 @@ final class Events implements Data_Source {
 		);
 	}
 
+	public function taxonomies(): array {
+		return Helpers::taxonomies_for( array( 'tribe_events' ) );
+	}
+
+	/**
+	 * The window a block asks for, in the site timezone. Null ends mean
+	 * "no limit" (the next-N mode).
+	 *
+	 * @return array{0: ?\DateTimeImmutable, 1: ?\DateTimeImmutable}
+	 */
+	public static function window( array $block_config ): array {
+		$tz    = wp_timezone();
+		$today = new \DateTimeImmutable( 'today', $tz );
+		switch ( (string) ( $block_config['event_range'] ?? 'next' ) ) {
+			case 'days':
+				$days = (int) ( $block_config['range_days'] ?? 0 );
+				$days = $days > 0 ? min( $days, 366 ) : 30;
+				// "Next 7 days" = today plus the six days after it.
+				return array( null, $today->modify( '+' . ( $days - 1 ) . ' days' )->setTime( 23, 59, 59 ) );
+			case 'month':
+				return array( null, $today->modify( 'last day of this month' )->setTime( 23, 59, 59 ) );
+			case 'dates':
+				$start = \DateTimeImmutable::createFromFormat( '!Y-m-d', (string) ( $block_config['range_start'] ?? '' ), $tz );
+				$end   = \DateTimeImmutable::createFromFormat( '!Y-m-d', (string) ( $block_config['range_end'] ?? '' ), $tz );
+				return array( $start ? $start : null, $end ? $end->setTime( 23, 59, 59 ) : null );
+		}
+		return array( null, null );
+	}
+
 	public function items( array $block_config ): array {
 		if ( ! $this->is_available() ) {
 			return array();
 		}
 
-		$max = (int) ( $block_config['max_items'] ?? 0 );
-		$max = $max > 0 ? min( $max, 50 ) : self::DEFAULT_MAX;
+		$range = (string) ( $block_config['event_range'] ?? 'next' );
+		$range = in_array( $range, self::RANGES, true ) ? $range : 'next';
+		$max   = (int) ( $block_config['max_items'] ?? 0 );
+		if ( 'next' === $range ) {
+			$max = $max > 0 ? min( $max, 50 ) : self::DEFAULT_MAX;
+		} else {
+			$max = $max > 0 ? min( $max, self::RANGE_CAP ) : self::RANGE_CAP;
+		}
+		list( $from, $to ) = self::window( $block_config + array( 'event_range' => $range ) );
+		$filter            = Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() );
 
-		$events = tribe_get_events(
-			array(
-				'posts_per_page' => $max,
-				'post_status'    => 'publish',
-				'ends_after'     => 'now', // Includes events in progress.
-				'orderby'        => 'event_date',
-				'order'          => 'ASC',
-			)
+		$args = array(
+			// Over-fetch when we filter in PHP below, so the cap still fills.
+			'posts_per_page' => ( $filter || $from || $to ) ? 200 : $max,
+			'post_status'    => 'publish',
+			'ends_after'     => 'now', // Includes events in progress.
+			'orderby'        => 'event_date',
+			'order'          => 'ASC',
 		);
+		if ( $to ) {
+			$args['starts_before'] = $to->format( 'Y-m-d H:i:s' );
+		}
 
 		$items = array();
-		foreach ( (array) $events as $event ) {
+		foreach ( (array) tribe_get_events( $args ) as $event ) {
 			$event = get_post( $event );
 			if ( ! $event ) {
 				continue;
 			}
+			// Checked here as well as in the query, so the result doesn't
+			// depend on which arguments this TEC version understands.
+			$start = $this->local_datetime( $event->ID, 'start' );
+			$end   = $this->local_datetime( $event->ID, 'end' ) ?? $start;
+			if ( $start && $to && $start > $to ) {
+				continue;
+			}
+			if ( $from && $end && $end < $from ) {
+				continue;
+			}
+			if ( $filter && ! Helpers::matches_terms( $event->ID, $filter ) ) {
+				continue;
+			}
 			$items[] = $this->normalize( $event );
+			if ( count( $items ) >= $max ) {
+				break;
+			}
 		}
 		return $items;
 	}

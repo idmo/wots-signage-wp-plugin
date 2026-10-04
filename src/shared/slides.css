@@ -1,4 +1,6 @@
-/* Shared by the player and the admin preview. Sizes are in stage pixels (1920×1080). */
+/* Shared by the player and the admin preview. Sizes are in stage pixels:
+   1920×1080 for 16:9; other screen shapes set the stage size inline and
+   --wots-stage-w / --wots-stage-h. */
 
 .wots-stage-frame {
 	position: relative;
@@ -61,10 +63,23 @@
 }
 
 .wots-panel-bg img {
+	position: absolute;
+	inset: 0;
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	display: block;
+}
+
+/* A template's per-item background fades in over the previous one. */
+.wots-panel-bg img.is-item {
+	animation: wots-content-fade 700ms ease-out both;
+}
+
+.wots-panel-bg__dim {
+	position: absolute;
+	inset: 0;
+	background: #000;
 }
 
 .wots-panel-wrap {
@@ -324,7 +339,8 @@
 	grid-template-rows: 1fr 1fr;
 	gap: 32px;
 	width: 100%;
-	height: 670px;
+	/* 670px on a 1080px-tall screen. */
+	height: calc(var(--wots-stage-h, 1080px) * 0.62);
 }
 
 .wots-tpl__region {
@@ -435,6 +451,50 @@
 .wots-el--html a {
 	color: inherit;
 	text-decoration: underline;
+}
+
+/* The template's "Text" element keeps the line breaks you type. */
+.wots-el.is-free {
+	white-space: pre-line;
+}
+
+/* Portrait screens (9:16, 3:4): a narrower canvas, so less fixed width. */
+.wots-stage.is-portrait .wots-panel {
+	width: 90%;
+	padding: 40px 48px;
+}
+
+.wots-stage.is-portrait .wots-banner {
+	height: 520px;
+}
+
+.wots-stage.is-portrait .wots-card-row {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.wots-stage.is-portrait .wots-card-text,
+.wots-stage.is-portrait .wots-qr-col {
+	width: 100%;
+}
+
+.wots-stage.is-portrait .wots-qr-col {
+	flex-direction: row;
+	justify-content: flex-start;
+	gap: 24px;
+}
+
+.wots-stage.is-portrait .wots-qr-col .wots-qr-card {
+	width: 200px;
+}
+
+.wots-stage.is-portrait .wots-list-when,
+.wots-stage.is-portrait .wots-list-org {
+	width: 240px;
+}
+
+.wots-stage.is-portrait .wots-list-row {
+	gap: 20px;
 }
 
 /* Content entrance animations (PRD v8). Replays when the panel remounts. */

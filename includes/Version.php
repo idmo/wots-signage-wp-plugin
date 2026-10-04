@@ -9,7 +9,7 @@ defined( 'ABSPATH' ) || exit;
  * The player polls a short token and only re-downloads the playlist when it
  * changes. The token changes when:
  *  - any signage-relevant post, its meta, or its terms are saved or deleted;
- *  - settings or the live show change;
+ *  - settings or the TV lineup change;
  *  - "Refresh Now" is pressed;
  *  - time passes a boundary the resolver recorded (next midnight for date
  *    schedules, an event ending) — see maybe_expire().
@@ -45,7 +45,7 @@ final class Version {
 		add_action( 'edit_attachment', array( self::class, 'bump' ) );
 		add_action( 'delete_attachment', array( self::class, 'bump' ) );
 
-		foreach ( array( Settings::OPTION, Sequences::LIVE_OPTION ) as $option ) {
+		foreach ( array( Settings::OPTION, Sequences::LIVE_OPTION, Sequences::LINEUP_OPTION ) as $option ) {
 			add_action( "update_option_{$option}", array( self::class, 'bump' ) );
 			add_action( "add_option_{$option}", array( self::class, 'bump' ) );
 		}

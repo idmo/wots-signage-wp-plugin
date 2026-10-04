@@ -1,6 +1,11 @@
 import { Button, SelectControl } from '@wordpress/components';
 import { useState } from '@wordpress/element';
-import { REGION_LABELS, TEMPLATE_LAYOUTS } from '../shared/templates';
+import {
+	REGION_LABELS,
+	TEMPLATE_LAYOUTS,
+	gridStyle,
+} from '../shared/templates';
+import { DEFAULT_DESIGN } from '../shared/types';
 import type { DataSourceInfo, TemplateRecord, TemplateSummary } from './api';
 import { TemplateBuilder } from './TemplateBuilder';
 
@@ -8,6 +13,62 @@ interface Props {
 	templates: TemplateSummary[];
 	dataSources: DataSourceInfo[];
 	onChanged: ( message: string ) => void;
+}
+
+/** Headline-ish elements, in order of preference, for the starter. */
+const TITLE_PREFERENCE = [ 'title', 'book_title', 'block_name' ];
+const DETAIL_PREFERENCE = [ 'date_time', 'organization', 'book_author' ];
+const BODY_PREFERENCE = [ 'excerpt', 'content_html', 'blurb_html' ];
+
+/**
+ * A ready-made template that fills the screen with each item's own image
+ * (an event's featured image, a book's cover…) behind the panel.
+ */
+export function backgroundStarter( source: DataSourceInfo ): TemplateRecord {
+	const keys = source.elements.map( ( e ) => e.key );
+	const pick = ( list: string[] ) => list.find( ( k ) => keys.includes( k ) );
+	const image = source.elements.find( ( e ) => e.type === 'image' );
+	const title = pick( TITLE_PREFERENCE );
+	const detail = pick( DETAIL_PREFERENCE );
+	const body = pick( BODY_PREFERENCE );
+	const top = [
+		title && { element: title, options: { size: 'xl' as const } },
+		detail && { element: detail, options: { size: 'l' as const } },
+	].filter( Boolean ) as TemplateRecord[ 'placements' ][ string ];
+	return {
+		title: `${ source.label }: image background`,
+		data_source: source.key,
+		layout: 'stack',
+		placements: {
+			top,
+			bl: body ? [ { element: body, options: {} } ] : [],
+			br: [
+				...( keys.includes( 'qr_code' )
+					? [
+							{
+								element: 'qr_code',
+								options: { align: 'right' as const },
+							},
+						]
+					: [] ),
+				{
+					element: 'free_text',
+					options: {
+						text: 'Scan for details',
+						role: 'meta' as const,
+						align: 'right' as const,
+					},
+				},
+			],
+		},
+		design: {
+			...DEFAULT_DESIGN,
+			row: 40,
+			col: 62,
+			background: image?.key ?? '',
+			dim: 35,
+		},
+	};
 }
 
 /** Templates tab: the list, and the builder for one template. */
@@ -66,6 +127,27 @@ export function TemplatesScreen( {
 					onChange={ setNewSource }
 				/>
 				<Button
+					variant="secondary"
+					disabled={
+						! dataSources
+							.find( ( s ) => s.key === newSource )
+							?.elements.some( ( e ) => e.type === 'image' )
+					}
+					onClick={ () => {
+						const source = dataSources.find(
+							( s ) => s.key === newSource
+						);
+						if ( source ) {
+							setEditing( {
+								...backgroundStarter( source ),
+								usedBy: 0,
+							} );
+						}
+					} }
+				>
+					Starter: image background
+				</Button>
+				<Button
 					variant="primary"
 					onClick={ () =>
 						setEditing( {
@@ -73,6 +155,7 @@ export function TemplatesScreen( {
 							data_source: newSource,
 							layout: 'stack',
 							placements: {},
+							design: DEFAULT_DESIGN,
 							usedBy: 0,
 						} )
 					}
@@ -112,9 +195,10 @@ export function TemplatesScreen( {
 									<td className="wots-col-thumb">
 										<span
 											className="wots-layout-thumb is-small"
-											style={ {
-												gridTemplateAreas: layout.areas,
-											} }
+											style={ gridStyle(
+												t.layout,
+												t.design
+											) }
 										>
 											{ layout.regions.map( ( r ) => (
 												<span
@@ -136,6 +220,7 @@ export function TemplatesScreen( {
 													data_source: t.data_source,
 													layout: t.layout,
 													placements: t.placements,
+													design: t.design,
 													usedBy: t.used_by,
 												} )
 											}

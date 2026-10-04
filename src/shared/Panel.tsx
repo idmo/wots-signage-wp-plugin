@@ -31,17 +31,54 @@ export function panelVars( panel: PanelStyle ): CSSProperties {
 }
 
 /**
- * The block's full-bleed background image. Rendered once per block so it
- * stays put while the carousel content changes in front of it.
+ * The full-bleed background. Normally the block's own image, rendered once
+ * per block so it stays put while the carousel content changes in front of
+ * it. A template can instead use each item's own image (e.g. the event's
+ * featured image); that one fades in as items change.
  */
-export function PanelBackground( { panel }: { panel: PanelStyle } ) {
+export function PanelBackground( {
+	panel,
+	image,
+	dim = 0,
+}: {
+	panel: PanelStyle;
+	/** Per-item image from the template's background element. */
+	image?: ImageAsset | null;
+	/** 0–90: dark overlay over the image, in percent. */
+	dim?: number;
+} ) {
+	const bg = image?.url ? image : panel.background;
 	return (
 		<div className="wots-panel-bg">
-			{ panel.background && (
-				<img src={ panel.background.url } alt="" aria-hidden="true" />
+			{ bg && (
+				<img
+					key={ bg.url }
+					className={ image?.url ? 'is-item' : undefined }
+					src={ bg.url }
+					alt=""
+					aria-hidden="true"
+				/>
+			) }
+			{ bg && dim > 0 && (
+				<div
+					className="wots-panel-bg__dim"
+					style={ { opacity: Math.min( 90, dim ) / 100 } }
+				/>
 			) }
 		</div>
 	);
+}
+
+/** The template's per-item background image and dim, if it has one. */
+export function itemBackground(
+	template: { design?: { background: string; dim: number } } | null,
+	fields: Record< string, unknown > | undefined
+): { image: ImageAsset | null; dim: number } {
+	const key = template?.design?.background;
+	const image = key ? ( fields?.[ key ] as ImageAsset | null ) : null;
+	return image?.url
+		? { image, dim: template?.design?.dim ?? 0 }
+		: { image: null, dim: 0 };
 }
 
 /**

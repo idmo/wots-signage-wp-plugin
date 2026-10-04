@@ -18,9 +18,9 @@ import {
 	getShows,
 	getStatus,
 	getTemplates,
-	goLive,
 	refreshNow,
 	renameShow,
+	saveLineup,
 	saveShowItems,
 	type AdminStatus,
 	type BlockSummary,
@@ -32,9 +32,11 @@ import {
 	type TemplateSummary,
 } from './api';
 import { BlockEditor } from './BlockEditor';
+import { BlockPreview } from './BlockPreview';
 import { BlocksScreen } from './BlocksScreen';
 import { playerHealth } from './common';
 import { ImportExportScreen } from './ImportExportScreen';
+import { LineupPanel, lineupIds } from './LineupPanel';
 import { PreviewScreen } from './PreviewScreen';
 import { ShowScreen } from './ShowScreen';
 import { ShowsBar } from './ShowsBar';
@@ -52,6 +54,7 @@ function App() {
 	const [ dataSources, setDataSources ] = useState< DataSourceInfo[] >( [] );
 	const [ status, setStatus ] = useState< AdminStatus | null >( null );
 	const [ editing, setEditing ] = useState< Editing >( null );
+	const [ previewing, setPreviewing ] = useState< number | null >( null );
 	const [ error, setError ] = useState( '' );
 	const [ notice, setNotice ] = useState( '' );
 	const [ savingShow, setSavingShow ] = useState( false );
@@ -147,6 +150,25 @@ function App() {
 		getShowById( id ).then( setShow ).catch( fail );
 	};
 
+	/** Save the TV lineup; the list updates right away. */
+	const updateLineup = async ( ids: number[] ) => {
+		const before = shows;
+		setShows(
+			shows.map( ( s ) => {
+				const i = ids.indexOf( s.id );
+				return { ...s, position: i + 1, is_live: i >= 0 };
+			} )
+		);
+		try {
+			const res = await saveLineup( ids );
+			setShows( res.shows );
+			loadBlocks();
+		} catch ( e ) {
+			setShows( before );
+			fail( e );
+		}
+	};
+
 	const onSaved = async (
 		id: number,
 		isNew: boolean,
@@ -195,16 +217,20 @@ function App() {
 		status?.heartbeat ?? null,
 		status?.now ?? Math.floor( Date.now() / 1000 )
 	);
-	const live = shows.find( ( s ) => s.is_live );
+	const lineup = lineupIds( shows )
+		.map( ( id ) => shows.find( ( s ) => s.id === id )?.title )
+		.filter( Boolean );
 
 	return (
 		<div className="wots-signage-admin">
 			<header className="wots-header">
 				<div>
 					<h1>Signage</h1>
-					{ live && (
-						<p className="wots-subtle">Live show: { live.title }</p>
-					) }
+					<p className="wots-subtle">
+						{ lineup.length
+							? `On the TV: ${ lineup.join( ' → ' ) }`
+							: 'Nothing is playing on the TV' }
+					</p>
 				</div>
 				<span className="wots-spacer" />
 				<span
@@ -257,6 +283,7 @@ function App() {
 										onEdit={ ( id ) =>
 											setEditing( { id } )
 										}
+										onPreview={ setPreviewing }
 										onNew={ () =>
 											setEditing( { id: null } )
 										}
@@ -301,18 +328,29 @@ function App() {
 							default:
 								return (
 									<>
+										<LineupPanel
+											shows={ shows }
+											currentId={ show.id }
+											busy={ busy }
+											onChange={ updateLineup }
+											onEdit={ selectShow }
+										/>
 										<ShowsBar
 											shows={ shows }
 											currentId={ show.id }
 											busy={ busy }
 											onSelect={ selectShow }
-											onGoLive={ ( id ) =>
-												showAction(
-													() => goLive( id ),
-													'This show is now live. The TV switches on its next check.',
-													id
-												)
-											}
+											onSetLive={ ( id, on ) => {
+												const ids = lineupIds( shows );
+												updateLineup(
+													on
+														? [ ...ids, id ]
+														: ids.filter(
+																( x ) =>
+																	x !== id
+															)
+												);
+											} }
 											onCreate={ async ( title ) => {
 												let newId = 0;
 												await showAction( async () => {
@@ -374,6 +412,7 @@ function App() {
 											onEditBlock={ ( id ) =>
 												setEditing( { id } )
 											}
+											onPreviewBlock={ setPreviewing }
 											onNewBlock={ () =>
 												setEditing( { id: null } )
 											}
@@ -383,6 +422,16 @@ function App() {
 						}
 					} }
 				</TabPanel>
+			) }
+
+			{ previewing !== null && (
+				<BlockPreview
+					blockId={ previewing }
+					title={
+						blocks.find( ( b ) => b.id === previewing )?.title ?? ''
+					}
+					onClose={ () => setPreviewing( null ) }
+				/>
 			) }
 
 			{ editing && (

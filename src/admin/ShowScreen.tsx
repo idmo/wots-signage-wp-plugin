@@ -32,6 +32,7 @@ interface Props {
 	saving: boolean;
 	onChange: ( items: ShowItem[] ) => void;
 	onEditBlock: ( id: number ) => void;
+	onPreviewBlock: ( id: number ) => void;
 	onNewBlock: () => void;
 }
 
@@ -46,6 +47,7 @@ export function ShowScreen( {
 	saving,
 	onChange,
 	onEditBlock,
+	onPreviewBlock,
 	onNewBlock,
 }: Props ) {
 	const byId = useMemo(
@@ -146,6 +148,9 @@ export function ShowScreen( {
 								position={ i + 1 }
 								block={ byId.get( row.block_id ) }
 								onEdit={ () => onEditBlock( row.block_id ) }
+								onPreview={ () =>
+									onPreviewBlock( row.block_id )
+								}
 								onRemove={ () =>
 									commit(
 										rows.filter(
@@ -193,12 +198,14 @@ function SortableRow( {
 	position,
 	block,
 	onEdit,
+	onPreview,
 	onRemove,
 }: {
 	row: Row;
 	position: number;
 	block: BlockSummary | undefined;
 	onEdit: () => void;
+	onPreview: () => void;
 	onRemove: () => void;
 } ) {
 	const {
@@ -271,6 +278,14 @@ function SortableRow( {
 				) }
 			</div>
 			<StatusBadge status={ block.status } />
+			<Button
+				variant="tertiary"
+				size="small"
+				icon="visibility"
+				onClick={ onPreview }
+				label={ `Preview ${ block.title }` }
+				showTooltip
+			/>
 			<Button
 				variant="tertiary"
 				size="small"

@@ -51,7 +51,13 @@ final class Admin_Menu {
 					: $submenu;
 			}
 		);
+	}
 
+	/**
+	 * Form handlers. Registered from Plugin::boot(), not register():
+	 * admin-post.php never fires admin_menu.
+	 */
+	public static function register_handlers(): void {
 		add_action( 'admin_post_wots_signage_rotate_key', array( self::class, 'rotate_key' ) );
 		add_action( 'admin_post_wots_signage_save_settings', array( self::class, 'save_settings' ) );
 	}
@@ -83,6 +89,7 @@ final class Admin_Menu {
 					'maxUpload'   => wp_max_upload_size(),
 					'settingsUrl' => admin_url( 'admin.php?page=' . self::SLUG . '-settings' ),
 					'settings'    => Settings::all(),
+					'stage'       => Settings::stage(),
 					'today'       => Schedule::today(),
 				)
 			) . ';',
@@ -115,7 +122,7 @@ final class Admin_Menu {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'wots_signage_rotate_key' ); ?>
 				<input type="hidden" name="action" value="wots_signage_rotate_key">
-				<?php submit_button( 'Rotate player key', 'secondary', 'submit', false ); ?>
+				<?php submit_button( 'Rotate player key', 'secondary', 'rotate', false ); ?>
 				<span class="description">The old URL stops working immediately.</span>
 			</form>
 
@@ -124,6 +131,17 @@ final class Admin_Menu {
 				<?php wp_nonce_field( 'wots_signage_save_settings' ); ?>
 				<input type="hidden" name="action" value="wots_signage_save_settings">
 				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="aspect">Screen shape</label></th>
+						<td>
+							<select name="aspect" id="aspect">
+								<?php foreach ( Settings::ASPECT_LABELS as $value => $label ) : ?>
+									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $s['aspect'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description">Match how the TV is mounted. For portrait, also rotate the display in the computer's display settings.</p>
+						</td>
+					</tr>
 					<tr>
 						<th scope="row"><label for="poll_interval">Check for changes every</label></th>
 						<td><input name="poll_interval" id="poll_interval" type="number" min="5" max="300" value="<?php echo esc_attr( $s['poll_interval'] ); ?>" class="small-text"> seconds
@@ -184,7 +202,7 @@ final class Admin_Menu {
 			wp_die( 'Not allowed.' );
 		}
 		check_admin_referer( 'wots_signage_save_settings' );
-		$fields = array( 'poll_interval', 'default_image_duration', 'default_item_duration', 'default_video_duration', 'brand_color', 'block_transition', 'transition_ms', 'content_animation', 'content_animation_ms' );
+		$fields = array( 'aspect', 'poll_interval', 'default_image_duration', 'default_item_duration', 'default_video_duration', 'brand_color', 'block_transition', 'transition_ms', 'content_animation', 'content_animation_ms' );
 		$input  = array();
 		foreach ( $fields as $field ) {
 			if ( isset( $_POST[ $field ] ) ) {

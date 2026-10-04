@@ -7,25 +7,30 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 **Blocks:** image, video, and dynamic blocks, with start/end dates, fit modes, durations, categories, and archiving. Status (active / scheduled / expired) is computed live in the site's timezone, so no cron job is needed.
 
 **Dynamic blocks** read WordPress directly:
-- **Upcoming Events** (The Events Calendar).
+- **Upcoming Events** (The Events Calendar): the next few events, every event in the next N days, everything left this month, or everything between two dates (with an optional cap).
+- **Category filters:** any source can be narrowed to the categories/tags of its own items (event categories, bulletin board taxonomies, book categories). The editor shows how many items match right now.
 - **Community Board**: Pods `bulletin_board_item` posts that are published, `approved`, and inside their `start_date`/`end_date` window. A posting drops off the moment its end time passes.
 - **Featured Readers**: readers whose `featured_month_year` matches this month (or a pinned month), each with their published recommendations. Book title, cover, and link come live from WooCommerce, and the author comes from `book_author`. A reader's books play back to back.
 - **Carousel** shows one item per slide; **List** puts every item on one slide (Featured Readers lists each reader once, with their books under them).
 - Each block has its own background image, panel color and opacity, and title/body/meta colors. The built-in layouts match the Next.js player.
 
-**Templates tab:** drag a data source's elements into one of three layouts, set size, alignment, and image fit, and see a live preview built from a real event, posting, or book. A block uses its own template, otherwise its category's default template, otherwise the built-in layout.
+**Templates tab:** drag a data source's elements into one of four layouts, resize the regions (drag the handles or use the sliders), set size, alignment, and image fit, add your own **Text** (e.g. "Scan for details"), and see a live preview built from a real event, posting, or book. A template can show **each item's own image full-screen** behind the panel (an event's featured image, a book's cover), darkened to keep text readable; **Starter: image background** makes one in a click. A block uses its own template, otherwise its category's default template, otherwise the built-in layout.
 
-**Shows:** several shows; New, Rename, Duplicate, Delete, and **Go live**. The TV switches at its next check.
+**Shows:** several shows; New, Rename, Duplicate, Delete. **On the TV** lists every show: tick the ones to play and drag them into order. The TV plays them back to back, then repeats. Changes apply at its next check.
+
+**Block preview:** the eye button on a block (or **Preview** in the block editor, which includes unsaved changes) plays just that block with the real player, ignoring its dates, so you can check the layout without waiting for the whole show.
 
 **Player** at `/signage/player/?key=…`:
+- **Screen shape** (Settings): landscape 16:9 or 4:3, portrait 9:16 or 3:4. Everything is laid out for that shape and scaled to fit.
+- **Keys:** ← / → previous and next slide, Space pause (resumes on its own after 5 minutes), F full screen, Esc leaves full screen (or, logged in, goes back to the Signage screen).
 - Transitions between blocks (cut, crossfade, slide, zoom). Within a carousel the background stays put and only the content animates (fade, slide up, zoom). Both are set in Settings and can be changed per block.
 - Checks a tiny version endpoint every poll interval (20 s by default) and downloads the playlist only when something changed. Changes apply at the next slide.
 - **Offline mode:** a service worker at `/signage/sw.js` keeps the player page, the last playlist, and every image and video in the show. The player keeps looping through Wi-Fi or site outages, and starts up offline after a power cut. A small amber dot appears bottom-right while it can't reach the site. Media no longer in the show is evicted.
 - Reloads itself after a plugin update.
 
-**Import / Export tab:** export one show or everything as a zip with a manifest and media (never the player key). On import, nothing changes until you confirm. Images and videos already in the library are matched by file hash and reused. For each name that already exists you choose **Keep mine**, **Replace mine**, or **Import as a copy**. Imported shows aren't put live.
+**Import / Export tab:** export one show or everything as a zip with a manifest and media (never the player key). On import, nothing changes until you confirm. Images and videos already in the library are matched by file hash and reused. For each name that already exists you choose **Keep mine**, **Replace mine**, or **Import as a copy**. Imported shows aren't added to the TV lineup.
 
-**Settings:** player key (copy / rotate), poll interval, default durations, brand color, default transition and content animation. Categories can set a default duration and a default template.
+**Settings:** player key (copy / rotate), screen shape, poll interval, default durations, brand color, default transition and content animation. Categories can set a default duration and a default template.
 
 Not yet (Phase 3): heartbeat alerting through n8n, auto-fill ordering pools, scheduled show switching, more data sources, multiple displays, the Next.js importer.
 
@@ -121,13 +126,14 @@ includes/               PHP (namespace WOTS\Signage, one class per file)
   Plugin.php            Wires hooks together
   PostTypes.php         Blocks, shows, templates, categories + their meta
   Schedule.php          Active / scheduled / expired, in the site timezone
-  Resolver.php          Live show -> eligible blocks -> playlist items
+  Resolver.php          TV lineup -> eligible blocks -> playlist items
   Version.php           Playlist version token + what invalidates it
-  Sequences.php         Live show and its ordered items
+  Sequences.php         Shows, their ordered items, and the TV lineup
+  Block_Preview.php     Plays one block (with unsaved edits) for the admin
   Blocks.php            Block summaries for the admin library
   Media.php             Attachment helpers, signage_169 image size
   Settings.php          Poll interval, default durations, brand color
-  DataSources/          Data_Source interface, Registry, Events, Community_Board, Featured_Readers
+  DataSources/          Data_Source and Filterable interfaces, Registry, Events, Community_Board, Featured_Readers
   Templates.php         Template Builder storage and resolution
   Import_Export.php     Zip export/import with media hash matching
   Rest/                 Player_Controller (key auth), Admin_Controller

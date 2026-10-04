@@ -23,6 +23,14 @@ final class Helpers {
 		return self::element( 'block_name', 'Block Name', 'text', 'The block\'s own name, the same on every item' );
 	}
 
+	/**
+	 * Fixed text typed into the template, e.g. "Scan for details". Its
+	 * words live in the placement's options, not in the data.
+	 */
+	public static function text_element(): array {
+		return self::element( 'free_text', 'Text', 'static', 'Your own words, the same on every item. Add as many as you like.' );
+	}
+
 	/** WordPress text (titles, excerpts) arrives HTML-encoded. */
 	public static function plain( string $text ): string {
 		return trim( preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( $text ), ENT_QUOTES, 'UTF-8' ) ) );
@@ -91,5 +99,97 @@ final class Helpers {
 			$date = $date->setTime( 23, 59, 59 );
 		}
 		return $date->getTimestamp();
+	}
+
+	/**
+	 * Taxonomies registered on these post types that an editor would
+	 * recognize (they have an admin screen), as slug => label.
+	 *
+	 * @param string[] $post_types Post types the items come from.
+	 * @param string   $prefix     Label prefix, e.g. "Book: ".
+	 */
+	public static function taxonomies_for( array $post_types, string $prefix = '' ): array {
+		$out = array();
+		foreach ( $post_types as $post_type ) {
+			if ( ! post_type_exists( $post_type ) ) {
+				continue;
+			}
+			foreach ( get_object_taxonomies( $post_type, 'objects' ) as $tax ) {
+				if ( ! $tax->show_ui || in_array( $tax->name, array( 'post_format', 'product_type', 'product_visibility', 'product_shipping_class' ), true ) ) {
+					continue;
+				}
+				$out[ $tax->name ] = $prefix . $tax->labels->name;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The block's term filter limited to taxonomies the source allows, with
+	 * empty selections dropped.
+	 *
+	 * @param mixed $filter  { taxonomy: [ term_id, … ] }.
+	 * @param array $allowed Taxonomy slug => label.
+	 * @return array<string, int[]>
+	 */
+	public static function term_filter( $filter, array $allowed ): array {
+		$out = array();
+		if ( ! is_array( $filter ) ) {
+			return $out;
+		}
+		foreach ( $filter as $taxonomy => $ids ) {
+			$ids = array_values( array_filter( array_map( 'intval', (array) $ids ) ) );
+			if ( $ids && isset( $allowed[ $taxonomy ] ) && taxonomy_exists( (string) $taxonomy ) ) {
+				$out[ (string) $taxonomy ] = $ids;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Does a post pass the filter? Taxonomies the post type doesn't use are
+	 * checked against $other_id instead (e.g. a recommendation's book).
+	 *
+	 * @param array<string, int[]> $filter From term_filter().
+	 */
+	public static function matches_terms( int $post_id, array $filter, int $other_id = 0 ): bool {
+		foreach ( $filter as $taxonomy => $ids ) {
+			$target = is_object_in_taxonomy( (string) get_post_type( $post_id ), $taxonomy ) ? $post_id : $other_id;
+			if ( ! $target || ! has_term( $ids, $taxonomy, $target ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Terms per taxonomy for the admin's filter picker.
+	 *
+	 * @param array $taxonomies Taxonomy slug => label.
+	 */
+	public static function describe_terms( array $taxonomies ): array {
+		$out = array();
+		foreach ( $taxonomies as $taxonomy => $label ) {
+			$terms = get_terms(
+				array(
+					'taxonomy'   => $taxonomy,
+					'hide_empty' => false,
+					'number'     => 300,
+				)
+			);
+			$out[] = array(
+				'taxonomy' => $taxonomy,
+				'label'    => $label,
+				'terms'    => is_array( $terms ) ? array_map(
+					static fn( \WP_Term $t ) => array(
+						'id'    => $t->term_id,
+						'name'  => html_entity_decode( $t->name, ENT_QUOTES, 'UTF-8' ),
+						'count' => (int) $t->count,
+					),
+					$terms
+				) : array(),
+			);
+		}
+		return $out;
 	}
 }

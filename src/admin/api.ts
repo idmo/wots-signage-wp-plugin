@@ -1,6 +1,12 @@
 import apiFetch from '@wordpress/api-fetch';
 import type { LayoutId } from '../shared/templates';
-import type { ElementPlacement, Fields } from '../shared/types';
+import type {
+	ElementPlacement,
+	Fields,
+	Playlist,
+	StageSize,
+	TemplateDesign,
+} from '../shared/types';
 
 export interface AdminConfig {
 	restRoot: string;
@@ -11,6 +17,7 @@ export interface AdminConfig {
 	maxUpload: number;
 	settingsUrl: string;
 	today: string;
+	stage: StageSize;
 	settings: {
 		poll_interval: number;
 		default_image_duration: number;
@@ -21,6 +28,7 @@ export interface AdminConfig {
 		transition_ms: number;
 		content_animation: string;
 		content_animation_ms: number;
+		aspect: string;
 	};
 }
 
@@ -93,7 +101,10 @@ export interface ShowSummary {
 	id: number;
 	title: string;
 	count: number;
+	/** In the TV lineup. */
 	is_live: boolean;
+	/** 1-based place in the lineup; 0 when not playing. */
+	position: number;
 	modified: string;
 }
 
@@ -104,6 +115,7 @@ export interface TemplateSummary {
 	source_label: string;
 	layout: LayoutId;
 	placements: Record< string, ElementPlacement[] >;
+	design: TemplateDesign;
 	used_by: number;
 	modified: string;
 }
@@ -118,6 +130,14 @@ export interface DataSourceInfo {
 		type: string;
 		hint?: string;
 	} >;
+	/** Taxonomies a block can filter by: slug → label. */
+	taxonomies: Record< string, string >;
+}
+
+export interface TaxonomyTerms {
+	taxonomy: string;
+	label: string;
+	terms: Array< { id: number; name: string; count: number } >;
 }
 
 export interface Heartbeat {
@@ -175,6 +195,12 @@ export interface BlockRecord {
 		_meta_color: string;
 		_transition: string;
 		_content_animation: string;
+		_event_range: 'next' | 'days' | 'month' | 'dates';
+		_range_days: number;
+		_range_start: string;
+		_range_end: string;
+		/** JSON { taxonomy: [ term_id ] }, or ''. */
+		_term_filter: string;
 	};
 }
 
@@ -247,8 +273,23 @@ export const deleteShow = ( id: number ) =>
 		path: `/wp/v2/signage_sequence/${ id }?force=true`,
 		method: 'DELETE',
 	} );
-export const goLive = ( id: number ) =>
-	api( { path: `${ NS }/sequences/${ id }/activate`, method: 'POST' } );
+export const saveLineup = ( shows: number[] ) =>
+	api< { lineup: number[]; shows: ShowSummary[] } >( {
+		path: `${ NS }/lineup`,
+		method: 'PUT',
+		data: { shows },
+	} );
+
+/** One block as a playlist. Pass `record` to preview unsaved edits. */
+export const previewBlock = ( id: number, record?: BlockRecord ) =>
+	api< Playlist >( {
+		path: `${ NS }/blocks/preview`,
+		method: 'POST',
+		data: { id, record: record ?? null },
+	} );
+
+export const getSourceTerms = ( key: string ) =>
+	api< TaxonomyTerms[] >( { path: `${ NS }/data-sources/${ key }/terms` } );
 
 // Templates
 export const getTemplates = () =>
@@ -259,6 +300,7 @@ export interface TemplateRecord {
 	data_source: string;
 	layout: LayoutId;
 	placements: Record< string, ElementPlacement[] >;
+	design: TemplateDesign;
 }
 export const saveTemplate = ( t: TemplateRecord ) =>
 	api< { id: number } >( {
@@ -273,6 +315,7 @@ export const saveTemplate = ( t: TemplateRecord ) =>
 				_data_source: t.data_source,
 				_layout: t.layout,
 				_placements: JSON.stringify( t.placements ),
+				_design: JSON.stringify( t.design ),
 			},
 		},
 	} );
@@ -330,14 +373,32 @@ export const commitImport = (
 		}
 	);
 
-/** Real items from a data source, for previews. */
-export const previewSource = ( key: string, monthYear = '' ) =>
-	api< {
+/** Real items from a data source, for previews and match counts. */
+export const previewSource = (
+	key: string,
+	options: {
+		monthYear?: string;
+		max?: number;
+		meta?: Partial< BlockRecord[ 'meta' ] >;
+	} = {}
+) => {
+	const m = options.meta ?? {};
+	const query = new URLSearchParams( {
+		max_items: String( options.max ?? 10 ),
+		featured_month_year: options.monthYear ?? '',
+		event_range: m._event_range ?? '',
+		range_days: String( m._range_days ?? '' ),
+		range_start: m._range_start ?? '',
+		range_end: m._range_end ?? '',
+		terms: m._term_filter ?? '',
+	} );
+	return api< {
 		available: boolean;
 		items: Array< { id: string; fields: Fields } >;
 	} >( {
-		path: `${ NS }/data-sources/${ key }/preview?max_items=10&featured_month_year=${ encodeURIComponent( monthYear ) }`,
+		path: `${ NS }/data-sources/${ key }/preview?${ query.toString() }`,
 	} );
+};
 
 export interface MediaInfo {
 	id: number;

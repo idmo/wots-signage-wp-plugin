@@ -26,6 +26,8 @@ export type ContentAnimation = 'none' | 'fade' | 'slide' | 'zoom';
 
 interface BaseItem {
 	key: string;
+	/** The lineup show this item came from (absent in previews). */
+	show?: number;
 	/** Items expanded from one block (carousel) share a group. */
 	group: string;
 	block_id: number;
@@ -64,13 +66,44 @@ export interface ElementPlacement {
 		size?: 's' | 'm' | 'l' | 'xl';
 		fit?: 'cover' | 'contain';
 		align?: 'left' | 'center' | 'right';
+		/** The "Text" element's words. */
+		text?: string;
+		/** Which text style the "Text" element borrows. */
+		role?: 'title' | 'meta' | 'body';
 	};
 }
 
+/** Region sizes and background (includes/Templates.php normalize_design). */
+export interface TemplateDesign {
+	/** Percent of the width given to the first column. */
+	col: number;
+	/** Percent of the height given to the first row. */
+	row: number;
+	/** Image element shown full-screen behind the panel, or ''. */
+	background: string;
+	/** 0–90: how much to darken that background. */
+	dim: number;
+}
+
+export const DEFAULT_DESIGN: TemplateDesign = {
+	col: 50,
+	row: 50,
+	background: '',
+	dim: 30,
+};
+
 export interface ResolvedTemplate {
 	id: number;
-	layout: 'stack' | 'split_left' | 'split_right';
+	layout: 'full' | 'stack' | 'split_left' | 'split_right';
 	regions: Record< string, ElementPlacement[] >;
+	design?: TemplateDesign;
+}
+
+/** The canvas everything is laid out on (Settings::stage()). */
+export interface StageSize {
+	aspect: string;
+	width: number;
+	height: number;
 }
 
 /** One source item's values, keyed by element key (plus a few extras). */
@@ -102,6 +135,11 @@ export interface Playlist {
 	version: string;
 	generated_at: string;
 	show: { id: number; title: string } | null;
-	settings: { poll_interval: number; brand_color: string };
+	shows?: Array< { id: number; title: string } >;
+	settings: {
+		poll_interval: number;
+		brand_color: string;
+		stage?: StageSize;
+	};
 	items: PlaylistItem[];
 }

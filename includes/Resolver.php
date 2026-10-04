@@ -20,23 +20,26 @@ final class Resolver {
 	public const FIT_MODES = array( 'cover', 'contain', 'contain-blur' );
 
 	/**
-	 * The full playlist for the live show.
+	 * The full playlist: every show in the TV lineup, back to back.
 	 */
 	public static function playlist(): array {
 		// Read the version first: if a time boundary just passed, this bumps
 		// it, and the payload below is resolved against the new state.
-		$version     = Version::current();
-		$sequence_id = Sequences::live_id();
-		$boundaries  = array( Schedule::next_midnight() );
-		$items       = array();
+		$version    = Version::current();
+		$lineup     = Sequences::lineup();
+		$boundaries = array( Schedule::next_midnight() );
+		$items      = array();
+		$today      = Schedule::today();
 
-		if ( $sequence_id ) {
-			$today = Schedule::today();
+		foreach ( $lineup as $sequence_id ) {
 			foreach ( Sequences::items( $sequence_id ) as $position => $entry ) {
 				foreach ( self::resolve_block( (int) $entry['block_id'], $today, $boundaries ) as $item ) {
-					// Unique even when the same block appears twice in a show.
-					$item['key']   = $position . ':' . $item['key'];
-					$item['group'] = $position . ':' . $item['group'];
+					// Unique even when the same block appears twice in a
+					// show, or in two shows.
+					$prefix        = $sequence_id . '.' . $position . ':';
+					$item['key']   = $prefix . $item['key'];
+					$item['group'] = $prefix . $item['group'];
+					$item['show']  = $sequence_id;
 					$items[]       = $item;
 				}
 			}
@@ -46,18 +49,46 @@ final class Resolver {
 		$future = array_filter( $boundaries, static fn( $t ) => $t > $now );
 		Version::set_next_change( $future ? (int) min( $future ) : Schedule::next_midnight() );
 
-		$settings = Settings::all();
+		$shows = array_map(
+			static fn( int $id ) => array(
+				'id'    => $id,
+				'title' => html_entity_decode( get_the_title( $id ), ENT_QUOTES, 'UTF-8' ),
+			),
+			$lineup
+		);
 		return array(
 			'version'      => $version,
 			'generated_at' => gmdate( DATE_ATOM ),
-			'show'         => $sequence_id ? array(
-				'id'    => $sequence_id,
-				'title' => get_the_title( $sequence_id ),
-			) : null,
-			'settings'     => array(
-				'poll_interval' => (int) $settings['poll_interval'],
-				'brand_color'   => (string) $settings['brand_color'],
-			),
+			// First show, kept for players from before 0.3.
+			'show'         => $shows[0] ?? null,
+			'shows'        => $shows,
+			'settings'     => self::player_settings(),
+			'items'        => $items,
+		);
+	}
+
+	public static function player_settings(): array {
+		$settings = Settings::all();
+		return array(
+			'poll_interval' => (int) $settings['poll_interval'],
+			'brand_color'   => (string) $settings['brand_color'],
+			'stage'         => Settings::stage(),
+		);
+	}
+
+	/**
+	 * A playlist of one block, for the admin's block preview. Ignores the
+	 * block's dates and status so you can check it before it goes live.
+	 */
+	public static function preview( int $block_id, string $name = '' ): array {
+		$boundaries = array();
+		$items      = self::resolve_block( $block_id, Schedule::today(), $boundaries, true, $name );
+		return array(
+			'version'      => 'preview',
+			'generated_at' => gmdate( DATE_ATOM ),
+			'show'         => null,
+			'shows'        => array(),
+			'settings'     => self::player_settings(),
 			'items'        => $items,
 		);
 	}
@@ -65,19 +96,25 @@ final class Resolver {
 	/**
 	 * Expand one block into zero or more playlist items.
 	 *
-	 * @param int[] $boundaries Collects future timestamps at which output changes.
+	 * @param int[]  $boundaries Collects future timestamps at which output changes.
+	 * @param bool   $preview    Skip the published/date checks (admin preview).
+	 * @param string $name       Name to show instead of the saved title (preview).
 	 */
-	public static function resolve_block( int $block_id, string $today, array &$boundaries = array() ): array {
-		$block = get_post( $block_id );
-		if ( ! $block || PostTypes::BLOCK !== $block->post_type || 'publish' !== $block->post_status ) {
-			return array();
-		}
-		if ( Schedule::ACTIVE !== Schedule::block_status( $block_id, $today ) ) {
-			return array();
+	public static function resolve_block( int $block_id, string $today, array &$boundaries = array(), bool $preview = false, string $name = '' ): array {
+		if ( ! $preview ) {
+			$block = get_post( $block_id );
+			if ( ! $block || PostTypes::BLOCK !== $block->post_type || 'publish' !== $block->post_status ) {
+				return array();
+			}
+			if ( Schedule::ACTIVE !== Schedule::block_status( $block_id, $today ) ) {
+				return array();
+			}
 		}
 
 		$type = (string) get_post_meta( $block_id, '_block_type', true );
-		$name = html_entity_decode( get_the_title( $block ), ENT_QUOTES, 'UTF-8' );
+		if ( '' === $name ) {
+			$name = html_entity_decode( get_the_title( $block_id ), ENT_QUOTES, 'UTF-8' );
+		}
 		$base = array(
 			'key'        => 'b' . $block_id,
 			// Items expanded from one block share a group: the player keeps
@@ -135,11 +172,7 @@ final class Resolver {
 			return array();
 		}
 		$mode   = 'list' === get_post_meta( $block_id, '_display_mode', true ) ? 'list' : 'carousel';
-		$config = array(
-			'max_items'           => (int) get_post_meta( $block_id, '_max_items', true ),
-			'display_mode'        => $mode,
-			'featured_month_year' => (string) get_post_meta( $block_id, '_featured_month_year', true ),
-		);
+		$config = self::source_config( $block_id ) + array( 'display_mode' => $mode );
 
 		$source_items = $source->items( $config );
 		if ( ! $source_items ) {
@@ -185,6 +218,22 @@ final class Resolver {
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * What a dynamic block asks its data source for.
+	 */
+	public static function source_config( int $block_id ): array {
+		$terms = json_decode( (string) get_post_meta( $block_id, '_term_filter', true ), true );
+		return array(
+			'max_items'           => (int) get_post_meta( $block_id, '_max_items', true ),
+			'featured_month_year' => (string) get_post_meta( $block_id, '_featured_month_year', true ),
+			'event_range'         => (string) get_post_meta( $block_id, '_event_range', true ),
+			'range_days'          => (int) get_post_meta( $block_id, '_range_days', true ),
+			'range_start'         => (string) get_post_meta( $block_id, '_range_start', true ),
+			'range_end'           => (string) get_post_meta( $block_id, '_range_end', true ),
+			'terms'               => is_array( $terms ) ? $terms : array(),
+		);
 	}
 
 	/**

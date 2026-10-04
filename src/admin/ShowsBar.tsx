@@ -1,5 +1,6 @@
 import {
 	Button,
+	CheckboxControl,
 	Modal,
 	SelectControl,
 	TextControl,
@@ -12,7 +13,8 @@ interface Props {
 	currentId: number;
 	busy: boolean;
 	onSelect: ( id: number ) => void;
-	onGoLive: ( id: number ) => void;
+	/** Add the show to the TV lineup (at the end), or take it out. */
+	onSetLive: ( id: number, on: boolean ) => void;
 	onCreate: ( title: string ) => void;
 	onRename: ( id: number, title: string ) => void;
 	onDuplicate: ( id: number ) => void;
@@ -23,15 +25,15 @@ type Dialog =
 	{ kind: 'new' | 'rename'; value: string } | { kind: 'delete' } | null;
 
 /**
- * Pick which show to edit, and manage shows (PRD §9.3). One show is live
- * at a time; "Go live" switches the TV at its next check.
+ * Pick which show to edit, and manage shows (PRD §9.3). Whether a show
+ * plays, and in what order, is set in the TV lineup above.
  */
 export function ShowsBar( {
 	shows,
 	currentId,
 	busy,
 	onSelect,
-	onGoLive,
+	onSetLive,
 	onCreate,
 	onRename,
 	onDuplicate,
@@ -49,22 +51,19 @@ export function ShowsBar( {
 				value={ String( currentId ) }
 				options={ shows.map( ( s ) => ( {
 					value: String( s.id ),
-					label: `${ s.title }${ s.is_live ? ' — live' : '' } (${ s.count })`,
+					label: `${ s.title }${ s.is_live ? ' — on the TV' : '' } · ${ s.count } block${ s.count === 1 ? '' : 's' }`,
 				} ) ) }
 				onChange={ ( v ) => onSelect( Number( v ) ) }
 			/>
-			{ current?.is_live ? (
-				<span className="wots-badge wots-badge--active wots-live">
-					Playing on the TV
-				</span>
-			) : (
-				<Button
-					variant="primary"
+			{ current && (
+				<CheckboxControl
+					__nextHasNoMarginBottom
+					className="wots-live-check"
+					label="Play on the TV"
+					checked={ current.is_live }
 					disabled={ busy }
-					onClick={ () => onGoLive( currentId ) }
-				>
-					Go live
-				</Button>
+					onChange={ ( on ) => onSetLive( currentId, on ) }
+				/>
 			) }
 			<span className="wots-spacer" />
 			<Button
@@ -93,11 +92,7 @@ export function ShowsBar( {
 			<Button
 				variant="tertiary"
 				isDestructive
-				disabled={ busy || ! current || current.is_live }
-				label={
-					current?.is_live ? 'Put another show live first' : undefined
-				}
-				showTooltip={ !! current?.is_live }
+				disabled={ busy || ! current }
 				onClick={ () => setDialog( { kind: 'delete' } ) }
 			>
 				Delete

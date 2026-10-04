@@ -45,7 +45,14 @@ final class Import_Export {
 		'_meta_color',
 		'_transition',
 		'_content_animation',
+		'_event_range',
+		'_range_days',
+		'_range_start',
+		'_range_end',
 	);
+
+	/** Holds term IDs, so it travels as slugs (see term_filter_*()). */
+	private const TERM_FILTER_META = '_term_filter';
 
 	// -----------------------------------------------------------------------
 	// Export
@@ -187,6 +194,7 @@ final class Import_Export {
 					'data_source' => (string) get_post_meta( $id, '_data_source', true ),
 					'layout'      => (string) get_post_meta( $id, '_layout', true ),
 					'placements'  => Templates::normalize_placements( (string) get_post_meta( $id, '_placements', true ) ),
+					'design'      => Templates::normalize_design( (string) get_post_meta( $id, '_design', true ) ),
 				);
 			}
 			return $ref;
@@ -238,12 +246,13 @@ final class Import_Export {
 				'meta'       => $meta,
 				'media'      => array_filter( $media_refs ),
 				'template'   => $add_template( (int) get_post_meta( $block_id, self::TEMPLATE_META, true ) ),
+				'filter'     => self::term_filter_to_slugs( (string) get_post_meta( $block_id, self::TERM_FILTER_META, true ) ),
 				'categories' => is_array( $terms ) ? array_map( $add_category, $terms ) : array(),
 			);
 		}
 
-		$live = Sequences::live_id();
-		$out  = array(
+		$lineup = Sequences::lineup();
+		$out    = array(
 			'format'      => self::FORMAT,
 			'version'     => self::VERSION,
 			'kind'        => $full ? 'full' : 'show',
@@ -258,7 +267,7 @@ final class Import_Export {
 				static fn( \WP_Post $s ) => array(
 					'ref'   => 's' . $s->ID,
 					'title' => $s->post_title,
-					'live'  => $s->ID === $live,
+					'live'  => in_array( $s->ID, $lineup, true ),
 					'items' => array_map(
 						static fn( $i ) => array(
 							'block'  => 'b' . $i['block_id'],
@@ -421,6 +430,7 @@ final class Import_Export {
 				'_data_source' => sanitize_key( (string) $t['data_source'] ),
 				'_layout'      => sanitize_key( (string) $t['layout'] ),
 				'_placements'  => Templates::sanitize_placements_json( $t['placements'] ?? array() ),
+				'_design'      => Templates::sanitize_design_json( $t['design'] ?? array() ),
 			);
 			$template_map[ $t['ref'] ] = self::upsert( PostTypes::TEMPLATE, 'template', $t['ref'], (string) $t['title'], 'publish', $meta, $decide, $stats );
 		}
@@ -460,7 +470,8 @@ final class Import_Export {
 				$ref          = $b['media'][ $key ] ?? null;
 				$meta[ $key ] = $ref && isset( $media_map[ $ref ] ) ? $media_map[ $ref ] : 0;
 			}
-			$meta[ self::TEMPLATE_META ] = ! empty( $b['template'] ) && ! empty( $template_map[ $b['template'] ] ) ? $template_map[ $b['template'] ] : 0;
+			$meta[ self::TEMPLATE_META ]    = ! empty( $b['template'] ) && ! empty( $template_map[ $b['template'] ] ) ? $template_map[ $b['template'] ] : 0;
+			$meta[ self::TERM_FILTER_META ] = self::term_filter_from_slugs( $b['filter'] ?? array() );
 
 			$status   = in_array( $b['status'] ?? 'publish', array( 'publish', 'draft', 'private' ), true ) ? $b['status'] : 'publish';
 			$decision = '';
@@ -498,6 +509,44 @@ final class Import_Export {
 		delete_transient( 'wots_signage_import_' . sanitize_key( $token ) );
 		Version::force_bump();
 		return $stats;
+	}
+
+	/**
+	 * { taxonomy: [ term_id ] } JSON → { taxonomy: [ slug ] }, since term IDs
+	 * differ between sites.
+	 */
+	private static function term_filter_to_slugs( string $json ): array {
+		$out = array();
+		foreach ( (array) json_decode( $json, true ) as $taxonomy => $ids ) {
+			foreach ( (array) $ids as $id ) {
+				$term = get_term( (int) $id, (string) $taxonomy );
+				if ( $term instanceof \WP_Term ) {
+					$out[ $taxonomy ][] = $term->slug;
+				}
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The reverse, on the importing site. Terms it doesn't have are dropped.
+	 *
+	 * @param mixed $filter { taxonomy: [ slug ] }.
+	 */
+	private static function term_filter_from_slugs( $filter ): string {
+		$out = array();
+		foreach ( is_array( $filter ) ? $filter : array() as $taxonomy => $slugs ) {
+			if ( ! taxonomy_exists( (string) $taxonomy ) ) {
+				continue;
+			}
+			foreach ( (array) $slugs as $slug ) {
+				$term = get_term_by( 'slug', sanitize_title( (string) $slug ), (string) $taxonomy );
+				if ( $term ) {
+					$out[ $taxonomy ][] = (int) $term->term_id;
+				}
+			}
+		}
+		return PostTypes::sanitize_term_filter( $out );
 	}
 
 	/**

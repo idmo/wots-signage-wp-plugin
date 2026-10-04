@@ -10,7 +10,7 @@ interface Props {
 
 /** Live player preview + shop player health (PRD §8.5, §9.5). */
 export function PreviewScreen( { status, refreshing, onRefresh }: Props ) {
-	const { previewUrl, playerUrl, settingsUrl } = adminConfig();
+	const { previewUrl, playerUrl, settingsUrl, stage } = adminConfig();
 	const hb = status?.heartbeat ?? null;
 	const health = playerHealth(
 		hb,
@@ -20,7 +20,15 @@ export function PreviewScreen( { status, refreshing, onRefresh }: Props ) {
 
 	return (
 		<div className="wots-preview">
-			<div className="wots-preview__frame">
+			<div
+				className="wots-preview__frame"
+				style={ {
+					aspectRatio: `${ stage.width } / ${ stage.height }`,
+					width: `min(100%, calc(75vh * ${
+						stage.width / stage.height
+					}))`,
+				} }
+			>
 				<iframe title="Signage preview" src={ previewUrl } />
 			</div>
 

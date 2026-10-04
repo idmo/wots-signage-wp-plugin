@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from '@wordpress/element';
 import { FitImage, FitVideo } from '../shared/Media';
-import { PanelBackground } from '../shared/Panel';
+import { PanelBackground, itemBackground } from '../shared/Panel';
 import { SlideContent } from '../shared/SlideRenderer';
-import { Stage } from '../shared/Stage';
-import type { Playlist, PlaylistItem } from '../shared/types';
-import { config, fetchPlaylist, fetchVersion, sendHeartbeat } from './api';
+import { DEFAULT_STAGE, Stage } from '../shared/Stage';
+import type { Playlist, PlaylistItem, StageSize } from '../shared/types';
+import {
+	config,
+	fetchPlaylist,
+	fetchVersion,
+	sendHeartbeat,
+	type PlayerConfig,
+} from './api';
 
 interface Layer {
 	id: number;
@@ -14,6 +20,28 @@ interface Layer {
 const HEARTBEAT_MS = 60_000;
 const MAX_BACKOFF_MS = 5 * 60_000;
 const EMPTY_RECHECK_MS = 5_000;
+/** A paused TV starts playing again on its own after this long. */
+const PAUSE_LIMIT_MS = 5 * 60_000;
+const HUD_MS = 2500;
+
+interface PlayerProps {
+	/**
+	 * Play this fixed playlist instead of the live one: no polling,
+	 * heartbeat, or offline cache. Used by the admin's block preview.
+	 */
+	preview?: Playlist;
+	/** Fill the browser window (kiosk) or the parent element (preview). */
+	fill?: 'window' | 'parent';
+	/** Lets the admin preview drive playback with its own buttons. */
+	controls?: { current: PlayerControls | null };
+	/** Called whenever a new item comes on screen. */
+	onItem?: ( index: number, total: number, label: string ) => void;
+}
+
+export interface PlayerControls {
+	step: ( delta: 1 | -1 ) => void;
+	setPaused: ( paused: boolean ) => void;
+}
 
 /**
  * The kiosk loop (PRD §8.3):
@@ -22,13 +50,29 @@ const EMPTY_RECHECK_MS = 5_000;
  *  - swaps in a new playlist at the next item boundary, never mid-slide;
  *  - keeps looping what it has if the network or site is down, retrying
  *    with backoff. (Phase 2's service worker adds offline media caching.)
+ *
+ * Keys: ← / → step back and forward, Space pauses, F toggles full screen,
+ * Esc leaves full screen (or, for a logged-in admin, goes back to the
+ * Signage screen).
  */
-export function Player() {
-	const cfg = config();
+export function Player( {
+	preview,
+	fill = 'window',
+	controls,
+	onItem,
+}: PlayerProps = {} ) {
+	const cfg: PlayerConfig | null = preview ? null : config();
 	const [ layers, setLayers ] = useState< Layer[] >( [] );
-	const [ brandColor, setBrandColor ] = useState( cfg.brandColor );
+	const [ brandColor, setBrandColor ] = useState(
+		preview?.settings.brand_color ?? cfg?.brandColor ?? '#1d3557'
+	);
+	const [ stage, setStage ] = useState< StageSize >(
+		preview?.settings.stage ?? cfg?.stage ?? DEFAULT_STAGE
+	);
 	const [ loaded, setLoaded ] = useState( false );
 	const [ offline, setOffline ] = useState( false );
+	const [ paused, setPaused ] = useState( false );
+	const [ hud, setHud ] = useState< string | null >( null );
 
 	const active = useRef< Playlist | null >( null );
 	const pending = useRef< Playlist | null >( null );
@@ -40,32 +84,46 @@ export function Player() {
 	const trimTimer = useRef< number | undefined >( undefined );
 	const lastError = useRef( '' );
 	const isOffline = useRef( false );
+	const isPaused = useRef( false );
+	const pauseTimer = useRef< number | undefined >( undefined );
+	const hudTimer = useRef< number | undefined >( undefined );
+	const onItemRef = useRef( onItem );
+	onItemRef.current = onItem;
 
 	// --- Advancing -----------------------------------------------------------
 
 	const schedule = ( ms: number ) => {
 		window.clearTimeout( advanceTimer.current );
+		if ( isPaused.current ) {
+			return; // Resuming reschedules.
+		}
 		advanceTimer.current = window.setTimeout(
 			() => advanceRef.current(),
 			ms
 		);
 	};
 
-	const advance = () => {
+	/** Show the next item, or with delta -1 the previous one. */
+	const advance = ( delta = 1 ) => {
 		window.clearTimeout( advanceTimer.current );
 
-		let next = index.current + 1;
+		let next = index.current + delta;
 		if ( pending.current ) {
 			active.current = pending.current;
 			pending.current = null;
 			setBrandColor(
-				active.current.settings.brand_color || cfg.brandColor
+				active.current.settings.brand_color ||
+					cfg?.brandColor ||
+					'#1d3557'
 			);
+			if ( active.current.settings.stage ) {
+				setStage( active.current.settings.stage );
+			}
 			const found = active.current.items.findIndex(
 				( i ) => i.key === currentKey.current
 			);
 			if ( found >= 0 ) {
-				next = found + 1;
+				next = found + delta;
 			}
 		}
 
@@ -79,7 +137,7 @@ export function Player() {
 			return;
 		}
 
-		next = next % items.length;
+		next = ( ( next % items.length ) + items.length ) % items.length;
 		const item = items[ next ];
 
 		// A one-item show of a still image: nothing to transition to.
@@ -89,6 +147,7 @@ export function Player() {
 			item.type !== 'video';
 		index.current = next;
 		currentKey.current = item.key;
+		onItemRef.current?.( next, items.length, itemLabel( item ) );
 
 		if ( ! sameStill ) {
 			const sameBlock =
@@ -133,10 +192,122 @@ export function Player() {
 	advanceRef.current = advance;
 
 	const onMediaEnded = ( layerId: number ) => {
-		if ( layerId === layerSeq.current ) {
+		if ( layerId === layerSeq.current && ! isPaused.current ) {
 			advanceRef.current();
 		}
 	};
+
+	// --- Keyboard ------------------------------------------------------------
+
+	const flash = ( text: string ) => {
+		setHud( text );
+		window.clearTimeout( hudTimer.current );
+		hudTimer.current = window.setTimeout( () => setHud( null ), HUD_MS );
+	};
+
+	const position = () => {
+		const items = active.current?.items ?? [];
+		const item = items[ index.current ];
+		return item
+			? `${ index.current + 1 } / ${ items.length } · ${ itemLabel( item ) }`
+			: '';
+	};
+
+	const setPausedState = ( on: boolean ) => {
+		isPaused.current = on;
+		setPaused( on );
+		window.clearTimeout( pauseTimer.current );
+		if ( on ) {
+			window.clearTimeout( advanceTimer.current );
+			// A forgotten pause shouldn't freeze the shop TV.
+			pauseTimer.current = window.setTimeout(
+				() => setPausedState( false ),
+				PAUSE_LIMIT_MS
+			);
+		} else {
+			const item = active.current?.items[ index.current ];
+			schedule( Math.max( 1, item?.duration || 10 ) * 1000 );
+		}
+	};
+	const setPausedRef = useRef( setPausedState );
+	setPausedRef.current = setPausedState;
+
+	if ( controls ) {
+		controls.current = {
+			step: ( delta ) => advanceRef.current( delta ),
+			setPaused: ( on ) => setPausedRef.current( on ),
+		};
+	}
+
+	useEffect( () => {
+		const onKey = ( e: KeyboardEvent ) => {
+			const target = e.target as HTMLElement | null;
+			if (
+				e.metaKey ||
+				e.ctrlKey ||
+				e.altKey ||
+				target?.closest( 'input, textarea, select, [contenteditable]' )
+			) {
+				return;
+			}
+			switch ( e.key ) {
+				case 'ArrowRight':
+				case 'ArrowLeft':
+					e.preventDefault();
+					advanceRef.current( e.key === 'ArrowRight' ? 1 : -1 );
+					flash( position() );
+					break;
+				case ' ':
+					e.preventDefault();
+					setPausedRef.current( ! isPaused.current );
+					flash( isPaused.current ? 'Paused' : 'Playing' );
+					break;
+				case 'f':
+				case 'F':
+					if ( preview ) {
+						break;
+					}
+					if ( document.fullscreenElement ) {
+						document.exitFullscreen().catch( () => {} );
+					} else {
+						document.documentElement
+							.requestFullscreen()
+							.catch( () => {} );
+					}
+					break;
+				case 'Escape':
+					if ( preview ) {
+						break; // The admin's dialog closes itself.
+					}
+					if ( document.fullscreenElement ) {
+						document.exitFullscreen().catch( () => {} );
+					} else if ( cfg?.exitUrl ) {
+						window.location.href = cfg.exitUrl;
+					} else {
+						flash( 'To quit, press ⌘Q (Mac) or Alt+F4 (Windows)' );
+					}
+					break;
+			}
+		};
+		window.addEventListener( 'keydown', onKey );
+		return () => window.removeEventListener( 'keydown', onKey );
+	}, [] ); // eslint-disable-line react-hooks/exhaustive-deps -- refs keep it current.
+
+	// --- Fixed playlist (admin preview) --------------------------------------
+
+	useEffect( () => {
+		if ( ! preview ) {
+			return;
+		}
+		active.current = null;
+		pending.current = preview;
+		index.current = -1;
+		currentKey.current = null;
+		previousGroup.current = null;
+		setLayers( [] );
+		advanceRef.current();
+		setLoaded( true );
+	}, [ preview ] );
 
 	const onMediaError = ( layerId: number, message: string ) => {
 		lastError.current = message;
@@ -148,6 +319,9 @@ export function Player() {
 	// --- Version polling -----------------------------------------------------
 
 	useEffect( () => {
+		if ( ! cfg ) {
+			return;
+		}
 		let stopped = false;
 		let timer: number | undefined;
 		let failures = 0;
@@ -227,7 +401,7 @@ export function Player() {
 	// --- Offline cache (PRD §8.4) ----------------------------------------------
 
 	useEffect( () => {
-		if ( ! cfg.swUrl || ! ( 'serviceWorker' in navigator ) ) {
+		if ( ! cfg?.swUrl || ! ( 'serviceWorker' in navigator ) ) {
 			return;
 		}
 		navigator.serviceWorker
@@ -241,7 +415,7 @@ export function Player() {
 
 	/** Tell the service worker which media to keep for offline playback. */
 	const cacheMedia = ( playlist: Playlist ) => {
-		if ( ! cfg.swUrl || ! ( 'serviceWorker' in navigator ) ) {
+		if ( ! cfg?.swUrl || ! ( 'serviceWorker' in navigator ) ) {
 			return;
 		}
 		const urls = Array.from(
@@ -257,6 +431,9 @@ export function Player() {
 	// --- Heartbeat & housekeeping -------------------------------------------
 
 	useEffect( () => {
+		if ( ! cfg ) {
+			return;
+		}
 		const startedAt = Date.now();
 		const beat = () => {
 			const items = active.current?.items ?? [];
@@ -286,12 +463,14 @@ export function Player() {
 			window.clearTimeout( first );
 			window.clearInterval( interval );
 		};
-	}, [] );
+	}, [] ); // eslint-disable-line react-hooks/exhaustive-deps -- once per page.
 
 	useEffect(
 		() => () => {
 			window.clearTimeout( advanceTimer.current );
 			window.clearTimeout( trimTimer.current );
+			window.clearTimeout( pauseTimer.current );
+			window.clearTimeout( hudTimer.current );
 		},
 		[]
 	);
@@ -300,13 +479,18 @@ export function Player() {
 
 	return (
 		<>
-			<Stage>
+			<Stage fill={ fill } size={ stage }>
 				{ layers.length === 0 && (
 					<div
 						className="wots-idle"
 						style={ { background: brandColor } }
 					>
-						{ loaded ? 'Nothing scheduled right now' : '' }
+						{ loaded && preview
+							? 'Nothing to show: this block has no items right now'
+							: '' }
+						{ loaded && ! preview
+							? 'Nothing scheduled right now'
+							: '' }
 					</div>
 				) }
 				{ layers.map( ( layer, i ) => {
@@ -345,6 +529,12 @@ export function Player() {
 					title="Can't reach the website — still playing"
 				/>
 			) }
+			{ ( hud || paused ) && (
+				<div className="wots-hud" role="status">
+					{ paused && <span className="wots-hud__badge">❚❚</span> }
+					{ hud ?? 'Paused' }
+				</div>
+			) }
 		</>
 	);
 }
@@ -370,13 +560,22 @@ function ItemView( {
 					onError={ onError }
 				/>
 			);
-		case 'slide':
+		case 'slide': {
+			const bg =
+				item.mode === 'carousel'
+					? itemBackground( item.template, item.fields )
+					: { image: null, dim: 0 };
 			return (
 				<>
-					<PanelBackground panel={ item.panel } />
+					<PanelBackground
+						panel={ item.panel }
+						image={ bg.image }
+						dim={ bg.dim }
+					/>
 					<SlideContent item={ item } />
 				</>
 			);
+		}
 	}
 	return null;
 }

@@ -1,4 +1,5 @@
 @import "../shared/slides.css";
+@import "../shared/playback.css";
 
 /* Plain CSS scoped to .wots-* so nothing leaks into core wp-admin styles (PRD §11.2). */
 
@@ -351,6 +352,8 @@
 
 .wots-preview__frame {
 	aspect-ratio: 16 / 9;
+	max-height: 75vh;
+	margin: 0 auto;
 	background: #000;
 	border-radius: 4px;
 	overflow: hidden;
@@ -589,13 +592,74 @@
 }
 
 .wots-regions {
+	position: relative;
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	grid-template-rows: minmax(150px, auto) minmax(150px, auto);
+	grid-template-rows: 1fr 1fr;
 	gap: 8px;
+	height: 420px;
 	padding: 8px;
+	box-sizing: border-box;
 	background: #1d2327;
 	border-radius: 6px;
+}
+
+.wots-regions .wots-region {
+	min-height: 0;
+	overflow-y: auto;
+}
+
+/* Drag handles on the column / row splits */
+.wots-split {
+	position: absolute;
+	z-index: 2;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.wots-split::after {
+	content: "";
+	position: absolute;
+	border-radius: 3px;
+	background: #72aee6;
+	opacity: 0.35;
+	transition: opacity 0.15s;
+}
+
+.wots-split:hover::after,
+.wots-split:focus-visible::after {
+	opacity: 1;
+}
+
+.wots-split:focus-visible {
+	outline: none;
+}
+
+.wots-split--col {
+	width: 16px;
+	margin-left: -8px;
+	cursor: col-resize;
+}
+
+.wots-split--col::after {
+	top: 40%;
+	bottom: 40%;
+	left: 6px;
+	width: 4px;
+}
+
+.wots-split--row {
+	height: 16px;
+	margin-top: -8px;
+	cursor: row-resize;
+}
+
+.wots-split--row::after {
+	left: 40%;
+	right: 40%;
+	top: 6px;
+	height: 4px;
 }
 
 .wots-region {
@@ -731,6 +795,7 @@
 	position: relative;
 	aspect-ratio: 16 / 9;
 	max-width: 960px;
+	max-height: 70vh;
 	background: #000;
 	border-radius: 4px;
 	overflow: hidden;
@@ -810,4 +875,154 @@ button.wots-region__label[aria-pressed="true"] {
 button.wots-region__label:focus-visible {
 	outline: 2px solid #72aee6;
 	outline-offset: 2px;
+}
+
+/* Block preview */
+.wots-block-preview.components-modal__frame {
+	width: min(1200px, 94vw);
+}
+
+.wots-preview-player {
+	width: 100%;
+	margin: 0 auto;
+	background: #000;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.wots-block-preview__bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+/* Dynamic block: term filter and match count */
+.wots-filter__group + .wots-filter__group {
+	margin-top: 12px;
+}
+
+.wots-filter__terms {
+	max-height: 160px;
+	overflow-y: auto;
+	margin-top: 6px;
+	padding: 8px;
+	border: 1px solid #dcdcde;
+	border-radius: 2px;
+}
+
+.wots-match {
+	margin: 12px 0 0;
+	font-weight: 600;
+}
+
+/* The "Text" element's words, under its row in a region */
+.wots-placed {
+	flex-wrap: wrap;
+}
+
+.wots-placed__text {
+	flex-basis: 100%;
+}
+
+.wots-placed__text textarea {
+	min-height: 0;
+	font-size: 13px;
+}
+
+/* TV lineup */
+.wots-lineup {
+	margin: 16px 0 20px;
+	padding: 12px 16px 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.wots-lineup__head {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 4px 16px;
+	margin-bottom: 8px;
+}
+
+.wots-lineup__head h2 {
+	margin: 0;
+	font-size: 15px;
+}
+
+.wots-lineup__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.wots-lineup__list.is-off {
+	margin-top: 4px;
+	padding-top: 4px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.wots-lineup__row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 40px;
+	padding: 2px 8px;
+	border-radius: 3px;
+	background: #fff;
+}
+
+.wots-lineup__row.is-current {
+	background: #f0f6fc;
+}
+
+.wots-lineup__row.is-dragging {
+	position: relative;
+	z-index: 2;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.wots-lineup__list.is-off .wots-lineup__row {
+	color: #646970;
+}
+
+.wots-lineup__handle {
+	width: 20px;
+	flex: none;
+}
+
+.wots-lineup__pos {
+	width: 18px;
+	flex: none;
+	font-weight: 600;
+	text-align: right;
+}
+
+.wots-lineup__name {
+	flex: 1;
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	min-width: 0;
+}
+
+.wots-lineup__name .components-button.is-link {
+	font-size: 14px;
+	text-decoration: none;
+}
+
+.wots-lineup__check {
+	flex: none;
+	margin: 0;
+}
+
+.wots-placed__style {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 2px 0 4px;
+	font-size: 12px;
 }

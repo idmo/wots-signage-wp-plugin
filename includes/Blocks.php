@@ -25,9 +25,10 @@ final class Blocks {
 		);
 
 		$live_ids = array();
-		$live     = Sequences::live_id();
-		if ( $live ) {
-			$live_ids = array_map( static fn( $i ) => (int) $i['block_id'], Sequences::items( $live ) );
+		foreach ( Sequences::lineup() as $show_id ) {
+			foreach ( Sequences::items( $show_id ) as $item ) {
+				$live_ids[] = (int) $item['block_id'];
+			}
 		}
 
 		$today = Schedule::today();

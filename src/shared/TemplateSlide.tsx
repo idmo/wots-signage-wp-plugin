@@ -1,5 +1,10 @@
 import { Qr } from './Qr';
-import { META_KEYS, TEMPLATE_LAYOUTS, TITLE_KEYS } from './templates';
+import {
+	META_KEYS,
+	TEMPLATE_LAYOUTS,
+	TITLE_KEYS,
+	gridStyle,
+} from './templates';
 import type {
 	ElementPlacement,
 	Fields,
@@ -17,7 +22,7 @@ export function TemplateSlide( {
 	fields,
 	elementTypes,
 }: {
-	template: Pick< ResolvedTemplate, 'layout' | 'regions' >;
+	template: Pick< ResolvedTemplate, 'layout' | 'regions' | 'design' >;
 	fields: Fields;
 	/** element key → type, from the data source's palette. */
 	elementTypes?: Record< string, string >;
@@ -25,7 +30,10 @@ export function TemplateSlide( {
 	const layout =
 		TEMPLATE_LAYOUTS[ template.layout ] ?? TEMPLATE_LAYOUTS.stack;
 	return (
-		<div className="wots-tpl" style={ { gridTemplateAreas: layout.areas } }>
+		<div
+			className="wots-tpl"
+			style={ gridStyle( template.layout, template.design ) }
+		>
 			{ layout.regions.map( ( region ) => (
 				<div
 					key={ region }
@@ -53,6 +61,9 @@ export function TemplateSlide( {
 
 /** Fallback when no palette is at hand (e.g. an imported template). */
 function guessType( key: string ): string {
+	if ( key === 'free_text' ) {
+		return 'static';
+	}
 	if ( key === 'qr_code' ) {
 		return 'qr';
 	}
@@ -81,6 +92,20 @@ export function ElementRenderer( {
 	const { element, options } = placement;
 	const align = options?.align ? ` is-${ options.align }` : '';
 	const size = options?.size ? ` is-size-${ options.size }` : '';
+
+	if ( type === 'static' ) {
+		const text = options?.text?.trim();
+		if ( ! text ) {
+			return null;
+		}
+		return (
+			<p
+				className={ `wots-el wots-el--${ options?.role ?? 'meta' } is-free${ align }${ size }` }
+			>
+				{ text }
+			</p>
+		);
+	}
 
 	if ( type === 'image' ) {
 		const image = value as ImageAsset | null;

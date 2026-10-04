@@ -102,6 +102,9 @@ final class Player_Route {
 			'authorized'   => $authorized,
 			'pollInterval' => (int) $settings['poll_interval'],
 			'brandColor'   => (string) $settings['brand_color'],
+			'stage'        => Settings::stage(),
+			// Esc takes a logged-in admin back to the Signage screen.
+			'exitUrl'      => $is_admin ? admin_url( 'admin.php?page=' . Admin_Menu::SLUG ) : null,
 			'build'        => Rest\Player_Controller::player_build(),
 			'swUrl'        => $key_ok ? home_url( '/signage/sw.js' ) : null,
 			'swScope'      => wp_parse_url( home_url( '/signage/' ), PHP_URL_PATH ),

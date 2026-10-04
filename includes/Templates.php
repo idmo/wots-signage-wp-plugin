@@ -10,8 +10,12 @@ defined( 'ABSPATH' ) || exit;
  *
  * A template is a signage_template post:
  *   _data_source  events | community_board | featured_readers
- *   _layout       stack | split_left | split_right
+ *   _layout       full | stack | split_left | split_right
  *   _placements   JSON { region: [ { element, options }, … ] }
+ *   _design       JSON { col, row, background, dim } — region sizes (percent
+ *                 of the width/height given to the first column/row), an
+ *                 image element shown full-screen behind the panel, and how
+ *                 much to darken it.
  *
  * Layouts mirror lib/templates.ts from the Next.js build so its templates
  * can be imported unchanged. Keep src/shared/templates.ts in step.
@@ -19,6 +23,7 @@ defined( 'ABSPATH' ) || exit;
 final class Templates {
 
 	public const LAYOUTS = array(
+		'full'        => array( 'main' ),
 		'stack'       => array( 'top', 'bl', 'br' ),
 		'split_left'  => array( 'lt', 'lb', 'right' ),
 		'split_right' => array( 'left', 'rt', 'rb' ),
@@ -77,7 +82,44 @@ final class Templates {
 		if ( isset( $options['align'] ) && in_array( $options['align'], array( 'left', 'center', 'right' ), true ) ) {
 			$clean['align'] = $options['align'];
 		}
+		// The "Text" element: its words, and which text style it borrows.
+		if ( isset( $options['text'] ) && is_string( $options['text'] ) ) {
+			$clean['text'] = mb_substr( sanitize_textarea_field( $options['text'] ), 0, 300 );
+		}
+		if ( isset( $options['role'] ) && in_array( $options['role'], array( 'title', 'meta', 'body' ), true ) ) {
+			$clean['role'] = $options['role'];
+		}
 		return $clean;
+	}
+
+	public const DESIGN_DEFAULTS = array(
+		'col'        => 50,
+		'row'        => 50,
+		'background' => '',
+		'dim'        => 30,
+	);
+
+	/**
+	 * Region sizes and background, clamped to sensible values.
+	 *
+	 * @param mixed $design JSON string or array.
+	 */
+	public static function normalize_design( $design ): array {
+		if ( is_string( $design ) ) {
+			$design = json_decode( $design, true );
+		}
+		$design = is_array( $design ) ? $design : array();
+		$clamp  = static fn( $v, int $lo, int $hi, int $fallback ) => is_numeric( $v ) ? max( $lo, min( $hi, (int) round( (float) $v ) ) ) : $fallback;
+		return array(
+			'col'        => $clamp( $design['col'] ?? null, 15, 85, 50 ),
+			'row'        => $clamp( $design['row'] ?? null, 15, 85, 50 ),
+			'background' => sanitize_key( (string) ( $design['background'] ?? '' ) ),
+			'dim'        => $clamp( $design['dim'] ?? null, 0, 90, 30 ),
+		);
+	}
+
+	public static function sanitize_design_json( $value ): string {
+		return (string) wp_json_encode( self::normalize_design( $value ) );
 	}
 
 	/**
@@ -110,6 +152,7 @@ final class Templates {
 			'id'      => $template_id,
 			'layout'  => $layout,
 			'regions' => $regions,
+			'design'  => self::normalize_design( (string) get_post_meta( $template_id, '_design', true ) ),
 		);
 	}
 
@@ -167,6 +210,7 @@ final class Templates {
 				'source_label' => Registry::get( $source ) ? Registry::get( $source )->label() : $source,
 				'layout'       => (string) get_post_meta( $post->ID, '_layout', true ),
 				'placements'   => self::normalize_placements( (string) get_post_meta( $post->ID, '_placements', true ) ),
+				'design'       => self::normalize_design( (string) get_post_meta( $post->ID, '_design', true ) ),
 				'used_by'      => count( $used ),
 				'modified'     => get_post_modified_time( DATE_ATOM, true, $post ),
 			);

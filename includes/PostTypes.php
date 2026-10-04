@@ -89,6 +89,12 @@ final class PostTypes {
 			'_max_items'           => array( 'integer', $int ),
 			'_list_label'          => array( 'string', 'sanitize_text_field' ),
 			'_featured_month_year' => array( 'string', 'sanitize_text_field' ),
+			// Which events (see DataSources\Events) and which terms.
+			'_event_range'         => array( 'string', $enum( DataSources\Events::RANGES, 'next' ), 'next' ),
+			'_range_days'          => array( 'integer', $int ),
+			'_range_start'         => array( 'string', array( Schedule::class, 'sanitize_date' ) ),
+			'_range_end'           => array( 'string', array( Schedule::class, 'sanitize_date' ) ),
+			'_term_filter'         => array( 'string', array( self::class, 'sanitize_term_filter' ) ), // JSON { taxonomy: [ids] }
 			// Panel styling for dynamic blocks (ported from the Next.js build).
 			'_bg_image_id'         => array( 'integer', $int ),
 			'_panel_color'         => array( 'string', $hex, '#000000' ),
@@ -107,8 +113,9 @@ final class PostTypes {
 		self::meta( self::SEQUENCE, '_items', 'string' );     // JSON list of block_id + pinned.
 		self::meta( self::SEQUENCE, '_autofill', 'string' );  // JSON (Phase 3)
 		self::meta( self::TEMPLATE, '_data_source', 'string', 'sanitize_key' );
-		self::meta( self::TEMPLATE, '_layout', 'string', $enum( array( 'stack', 'split_left', 'split_right' ), 'stack' ) );
+		self::meta( self::TEMPLATE, '_layout', 'string', $enum( array_keys( Templates::LAYOUTS ), 'stack' ) );
 		self::meta( self::TEMPLATE, '_placements', 'string', array( Templates::class, 'sanitize_placements_json' ) ); // JSON
+		self::meta( self::TEMPLATE, '_design', 'string', array( Templates::class, 'sanitize_design_json' ) ); // JSON
 
 		foreach ( array(
 			'_default_duration'    => array( 'integer', $int ),
@@ -127,6 +134,26 @@ final class PostTypes {
 				)
 			);
 		}
+	}
+
+	/**
+	 * { taxonomy: [ term_id, … ] } as JSON, with empty lists dropped.
+	 *
+	 * @param mixed $value JSON string or array.
+	 */
+	public static function sanitize_term_filter( $value ): string {
+		if ( is_string( $value ) ) {
+			$value = json_decode( $value, true );
+		}
+		$out = array();
+		foreach ( is_array( $value ) ? $value : array() as $taxonomy => $ids ) {
+			$taxonomy = sanitize_key( (string) $taxonomy );
+			$ids      = array_values( array_unique( array_filter( array_map( 'intval', (array) $ids ) ) ) );
+			if ( '' !== $taxonomy && $ids ) {
+				$out[ $taxonomy ] = $ids;
+			}
+		}
+		return $out ? (string) wp_json_encode( $out ) : '';
 	}
 
 	private static function meta( string $post_type, string $key, string $type, $sanitize = null, $default_value = null ): void {

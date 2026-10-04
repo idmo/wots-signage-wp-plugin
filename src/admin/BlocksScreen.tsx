@@ -13,6 +13,7 @@ interface Props {
 	blocks: BlockSummary[];
 	categories: Category[];
 	onEdit: ( id: number ) => void;
+	onPreview: ( id: number ) => void;
 	onNew: () => void;
 }
 
@@ -25,7 +26,13 @@ const STATUS_OPTIONS: Array< { value: string; label: string } > = [
 ];
 
 /** Block library with filters by category, status, and type (PRD §9.1). */
-export function BlocksScreen( { blocks, categories, onEdit, onNew }: Props ) {
+export function BlocksScreen( {
+	blocks,
+	categories,
+	onEdit,
+	onPreview,
+	onNew,
+}: Props ) {
 	const [ search, setSearch ] = useState( '' );
 	const [ type, setType ] = useState( '' );
 	const [ status, setStatus ] = useState( '' );
@@ -123,7 +130,8 @@ export function BlocksScreen( { blocks, categories, onEdit, onNew }: Props ) {
 							<th>Schedule</th>
 							<th>Duration</th>
 							<th>Status</th>
-							<th>In show</th>
+							<th>On the TV</th>
+							<th aria-label="Actions" />
 						</tr>
 					</thead>
 					<tbody>
@@ -173,6 +181,16 @@ export function BlocksScreen( { blocks, categories, onEdit, onNew }: Props ) {
 									<StatusBadge status={ b.status } />
 								</td>
 								<td>{ b.in_live_show ? 'Yes' : '—' }</td>
+								<td>
+									<Button
+										variant="tertiary"
+										size="small"
+										icon="visibility"
+										label={ `Preview ${ b.title }` }
+										showTooltip
+										onClick={ () => onPreview( b.id ) }
+									/>
+								</td>
 							</tr>
 						) ) }
 					</tbody>

@@ -23,6 +23,41 @@ final class Settings {
 			// Entrance animation for a dynamic block's content panel.
 			'content_animation'      => 'fade',
 			'content_animation_ms'   => 500,
+			// Shape of the screen. Everything is laid out on a canvas of
+			// this shape and scaled to fit the display.
+			'aspect'                 => '16:9',
+		);
+	}
+
+	/** Canvas size in stage pixels for each screen shape. */
+	public const ASPECTS = array(
+		'16:9' => array( 1920, 1080 ),
+		'9:16' => array( 1080, 1920 ),
+		'4:3'  => array( 1440, 1080 ),
+		'3:4'  => array( 1080, 1440 ),
+	);
+
+	public const ASPECT_LABELS = array(
+		'16:9' => 'Landscape 16:9 (most TVs)',
+		'9:16' => 'Portrait 9:16 (TV turned on its side)',
+		'4:3'  => 'Landscape 4:3',
+		'3:4'  => 'Portrait 3:4',
+	);
+
+	/**
+	 * The canvas for the current screen shape.
+	 *
+	 * @return array{aspect: string, width: int, height: int}
+	 */
+	public static function stage(): array {
+		$aspect = (string) self::get( 'aspect' );
+		if ( ! isset( self::ASPECTS[ $aspect ] ) ) {
+			$aspect = '16:9';
+		}
+		return array(
+			'aspect' => $aspect,
+			'width'  => self::ASPECTS[ $aspect ][0],
+			'height' => self::ASPECTS[ $aspect ][1],
 		);
 	}
 
@@ -63,6 +98,9 @@ final class Settings {
 			if ( isset( $input[ $key ] ) ) {
 				$clean[ $key ] = max( 0, min( 5000, (int) $input[ $key ] ) );
 			}
+		}
+		if ( isset( $input['aspect'] ) && isset( self::ASPECTS[ $input['aspect'] ] ) ) {
+			$clean['aspect'] = $input['aspect'];
 		}
 		if ( isset( $input['brand_color'] ) ) {
 			$color = sanitize_hex_color( (string) $input['brand_color'] );
