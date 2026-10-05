@@ -1,6 +1,6 @@
 {
 	"name": "wots-signage",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"private": true,
 	"description": "Digital signage plugin for Word on the Street Books",
 	"scripts": {

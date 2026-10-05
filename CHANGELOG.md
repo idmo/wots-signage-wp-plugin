@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 (2026-10-05)
+
+- Leave out: every dynamic block can skip specific items (by title or ID) and anything in chosen categories or tags, so blocks can share a feed and look different without repeating items.
+- Image blocks can hold several images: pick many at once, reorder them, and optionally shuffle daily. Each image plays as its own slide.
+
 ## 0.4.0 (2026-10-04)
 
 - Instagram Posts block: your latest photos, reels, and albums in a 9:16 frame with the caption beside it (centered when there's no caption), or a grid in List mode. Reels play muted.
