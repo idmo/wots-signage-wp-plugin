@@ -103,7 +103,7 @@ final class Events implements Data_Source, Filterable, Pickable {
 
 		$args = array(
 			// Over-fetch when we filter in PHP below, so the cap still fills.
-			'posts_per_page' => ( $filter || $from || $to ) ? 200 : $max,
+			'posts_per_page' => ( $filter || $from || $to || Helpers::excludes_any( $block_config ) ) ? 200 : $max,
 			'post_status'    => 'publish',
 			'ends_after'     => 'now', // Includes events in progress.
 			'orderby'        => 'event_date',
@@ -150,6 +150,9 @@ final class Events implements Data_Source, Filterable, Pickable {
 				continue;
 			}
 			if ( $filter && ! Helpers::matches_terms( $event->ID, $filter ) ) {
+				continue;
+			}
+			if ( Helpers::excluded( $event->ID, $block_config, $this->taxonomies() ) ) {
 				continue;
 			}
 			$items[] = $this->normalize( $event );

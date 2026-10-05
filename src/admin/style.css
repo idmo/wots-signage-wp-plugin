@@ -1051,3 +1051,61 @@ button.wots-region__label:focus-visible {
 	flex: 1;
 	min-width: 0;
 }
+
+/* Image block: several images */
+.wots-image-list__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+	gap: 10px;
+	margin: 0 0 12px;
+	padding: 0;
+	list-style: none;
+}
+
+.wots-image-list__grid li {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	overflow: hidden;
+	background: #f6f7f7;
+}
+
+.wots-image-list__grid img,
+.wots-image-list__missing {
+	width: 100%;
+	aspect-ratio: 16 / 10;
+	object-fit: cover;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #8c8f94;
+}
+
+.wots-image-list__num {
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	min-width: 20px;
+	padding: 0 5px;
+	border-radius: 10px;
+	background: rgba(0, 0, 0, 0.65);
+	color: #fff;
+	font-size: 11px;
+	line-height: 20px;
+	text-align: center;
+}
+
+.wots-image-list__tools {
+	display: flex;
+	justify-content: center;
+	background: #fff;
+}
+
+/* Dynamic block: "Leave out" section */
+.wots-leave-out {
+	margin-top: 8px;
+	padding-top: 4px;
+	border-top: 1px dashed #c3c4c7;
+}

@@ -4,12 +4,13 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 
 ## Status: Phase 2 (parity with the Next.js build)
 
-**Blocks:** image, video, and dynamic blocks, with start/end dates, fit modes, durations, categories, and archiving. Status (active / scheduled / expired) is computed live in the site's timezone, so no cron job is needed.
+**Blocks:** image, video, and dynamic blocks. An image block can hold several images (pick many at once, reorder with the arrows, optional daily shuffle); each plays as its own slide for the block's seconds-per-image. Blocks have start/end dates, fit modes, durations, categories, and archiving. Status (active / scheduled / expired) is computed live in the site's timezone, so no cron job is needed.
 
 **Dynamic blocks** read WordPress directly:
 - **Upcoming Events** (The Events Calendar): the next few events, every event in the next N days, everything left this month, or everything between two dates (with an optional cap).
 - **Posts**: regular WordPress posts, newest first, with featured image, title, date, categories, excerpt, and a QR code to the post. Narrow by category or tag, or hand-pick posts.
 - **Hand-picked posts:** Events, Posts, Community Board, and Featured Readers blocks can show specific items (search by title or type an ID). Picked events show soonest first and still drop off once they end; picked postings still need approval and their dates; picked readers show whatever their featured month. Picks aren't carried by Import/Export, since post IDs differ between sites.
+- **Leave out:** every source can skip specific items by ID and anything in chosen categories or tags, so two blocks can draw from the same posts and look different (each with its own template) without repeating items.
 - **Category filters:** any source can be narrowed to the categories/tags of its own items (event categories, bulletin board taxonomies, book categories). The editor shows how many items match right now.
 - **Community Board**: Pods `bulletin_board_item` posts that are published, `approved`, and inside their `start_date`/`end_date` window. A posting drops off the moment its end time passes.
 - **Instagram Posts**: the shop account's latest photos, reels, and albums (first slide). Built-in layout: the post in a 9:16 frame on the left with its caption on the right, or centered when there's no caption. List mode shows a grid. Reels play muted.

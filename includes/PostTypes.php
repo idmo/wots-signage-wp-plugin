@@ -80,6 +80,10 @@ final class PostTypes {
 			'_fit_mode'            => array( 'string', $enum( Resolver::FIT_MODES, 'cover' ) ),
 			'_archived'            => array( 'boolean', null ),
 			'_image_id'            => array( 'integer', $int ),
+			// Image blocks with several images: attachment IDs in play order.
+			// _image_id keeps the first, for anything that reads one image.
+			'_image_ids'           => array( 'string', array( self::class, 'sanitize_post_ids' ) ),
+			'_shuffle'             => array( 'boolean', null ),
 			'_text_heavy'          => array( 'boolean', null ),
 			'_video_id'            => array( 'integer', $int ),
 			'_data_source'         => array( 'string', 'sanitize_key' ),
@@ -97,6 +101,9 @@ final class PostTypes {
 			'_term_filter'         => array( 'string', array( self::class, 'sanitize_term_filter' ) ), // JSON { taxonomy: [ids] }
 			// Hand-picked posts of the source's type, in order: "12,7,40".
 			'_post_ids'            => array( 'string', array( self::class, 'sanitize_post_ids' ) ),
+			// Left out: post IDs, and posts with any of these terms.
+			'_exclude_ids'         => array( 'string', array( self::class, 'sanitize_post_ids' ) ),
+			'_exclude_terms'       => array( 'string', array( self::class, 'sanitize_term_filter' ) ), // JSON { taxonomy: [ids] }
 			// Panel styling for dynamic blocks (ported from the Next.js build).
 			'_bg_image_id'         => array( 'integer', $int ),
 			'_panel_color'         => array( 'string', $hex, '#000000' ),

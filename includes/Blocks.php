@@ -52,10 +52,15 @@ final class Blocks {
 		$issue    = '';
 		switch ( $type ) {
 			case Resolver::TYPE_IMAGE:
-				$image_id = (int) get_post_meta( $id, '_image_id', true );
-				$src      = $image_id ? wp_get_attachment_image_src( $image_id, 'medium' ) : false;
-				$thumb    = $src ? $src[0] : null;
-				$issue    = $src ? '' : 'No image selected';
+				$image_ids = array_values( array_filter( Resolver::image_ids( $id ), static fn( $i ) => (bool) wp_get_attachment_image_src( $i, 'medium' ) ) );
+				$src       = $image_ids ? wp_get_attachment_image_src( $image_ids[0], 'medium' ) : false;
+				$thumb     = $src ? $src[0] : null;
+				$issue     = $src ? '' : 'No image selected';
+				if ( count( $image_ids ) > 1 ) {
+					$each     = Resolver::duration( $id, 'image' );
+					$detail   = count( $image_ids ) . ' images · ' . $each . 's each' . ( get_post_meta( $id, '_shuffle', true ) ? ' · shuffled' : '' );
+					$duration = $each * count( $image_ids );
+				}
 				break;
 			case Resolver::TYPE_VIDEO:
 				$video = Media::video( (int) get_post_meta( $id, '_video_id', true ) );

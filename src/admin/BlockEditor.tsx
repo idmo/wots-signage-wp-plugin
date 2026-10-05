@@ -27,6 +27,7 @@ import {
 	PanelSettings,
 } from './DynamicFields';
 import { BlockPreview } from './BlockPreview';
+import { ImageListPicker } from './ImageListPicker';
 import { MediaPicker } from './MediaPicker';
 
 interface Props {
@@ -51,6 +52,8 @@ const EMPTY: BlockRecord = {
 		_fit_mode: 'cover',
 		_archived: false,
 		_image_id: 0,
+		_image_ids: '',
+		_shuffle: false,
 		_text_heavy: false,
 		_video_id: 0,
 		_data_source: 'events',
@@ -74,6 +77,8 @@ const EMPTY: BlockRecord = {
 		_range_end: '',
 		_term_filter: '',
 		_post_ids: '',
+		_exclude_ids: '',
+		_exclude_terms: '',
 	},
 };
 
@@ -134,6 +139,11 @@ export function BlockEditor( {
 	const setMeta = ( patch: Partial< BlockRecord[ 'meta' ] > ) =>
 		setRecord( { ...record, meta: { ...meta, ...patch } } );
 	const type = meta._block_type;
+	// Older blocks have only _image_id.
+	const imageIds = meta._image_ids
+		? meta._image_ids.split( ',' ).map( Number ).filter( Boolean )
+		: [ meta._image_id ].filter( Boolean );
+	const slideshow = type === 'static_image' && imageIds.length > 1;
 
 	const categoryDefault = categories
 		.filter( ( c ) => record.signage_category.includes( c.id ) )
@@ -151,7 +161,7 @@ export function BlockEditor( {
 		if ( ! record.title.trim() ) {
 			return 'Give the block a name.';
 		}
-		if ( type === 'static_image' && ! meta._image_id ) {
+		if ( type === 'static_image' && ! imageIds.length ) {
 			return 'Choose an image.';
 		}
 		if ( type === 'video' && ! meta._video_id ) {
@@ -241,10 +251,23 @@ export function BlockEditor( {
 			/>
 
 			{ type === 'static_image' && (
-				<MediaPicker
-					kind="image"
-					value={ meta._image_id }
-					onChange={ ( id ) => setMeta( { _image_id: id } ) }
+				<ImageListPicker
+					value={ imageIds }
+					onChange={ ( ids ) =>
+						setMeta( {
+							_image_ids: ids.join( ',' ),
+							_image_id: ids[ 0 ] ?? 0,
+						} )
+					}
+				/>
+			) }
+			{ slideshow && (
+				<ToggleControl
+					__nextHasNoMarginBottom
+					label="Shuffle"
+					help="Play the images in a different order each day."
+					checked={ meta._shuffle }
+					onChange={ ( v ) => setMeta( { _shuffle: v } ) }
 				/>
 			) }
 
@@ -308,11 +331,14 @@ export function BlockEditor( {
 						__nextHasNoMarginBottom
 						type="number"
 						min={ 1 }
-						label={
-							type === 'video'
-								? 'Duration if length unknown'
-								: 'Seconds on screen'
-						}
+						label={ ( () => {
+							if ( type === 'video' ) {
+								return 'Duration if length unknown';
+							}
+							return slideshow
+								? 'Seconds per image'
+								: 'Seconds on screen';
+						} )() }
 						placeholder={ String( defaultDuration ) }
 						help={
 							type === 'video'

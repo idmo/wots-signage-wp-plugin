@@ -189,6 +189,9 @@ export interface BlockRecord {
 		_fit_mode: 'cover' | 'contain' | 'contain-blur';
 		_archived: boolean;
 		_image_id: number;
+		/** Several images, in play order: "12,7,40", or ''. */
+		_image_ids: string;
+		_shuffle: boolean;
 		_text_heavy: boolean;
 		_video_id: number;
 		_data_source: string;
@@ -214,6 +217,10 @@ export interface BlockRecord {
 		_term_filter: string;
 		/** Hand-picked post IDs, in order: "12,7,40", or ''. */
 		_post_ids: string;
+		/** Left-out post IDs: "12,7", or ''. */
+		_exclude_ids: string;
+		/** Left-out terms, JSON { taxonomy: [ term_id ] }, or ''. */
+		_exclude_terms: string;
 	};
 }
 
@@ -417,6 +424,8 @@ export const previewSource = (
 		range_end: m._range_end ?? '',
 		terms: m._term_filter ?? '',
 		post_ids: m._post_ids ?? '',
+		exclude_ids: m._exclude_ids ?? '',
+		exclude_terms: m._exclude_terms ?? '',
 	} );
 	return api< {
 		available: boolean;

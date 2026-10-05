@@ -237,6 +237,29 @@ export function DynamicSettings( {
 				/>
 			) }
 
+			{ source && ! picked.length && (
+				<div className="wots-leave-out">
+					{ source.pick && (
+						<PostPicker
+							key={ `${ source.key }-out` }
+							exclude
+							sourceKey={ source.key }
+							noun={ source.pick }
+							value={ meta._exclude_ids }
+							onChange={ ( v ) => setMeta( { _exclude_ids: v } ) }
+						/>
+					) }
+					{ Object.keys( source.taxonomies ?? {} ).length > 0 && (
+						<TermFilter
+							exclude
+							sourceKey={ source.key }
+							meta={ meta }
+							setMeta={ setMeta }
+						/>
+					) }
+				</div>
+			) }
+
 			<MatchCount meta={ meta } />
 		</div>
 	);
@@ -260,11 +283,14 @@ function PostPicker( {
 	noun,
 	value,
 	onChange,
+	exclude = false,
 }: {
 	sourceKey: string;
 	noun: string;
 	value: string;
 	onChange: ( v: string ) => void;
+	/** "Leave out these …" instead of "Only these …". */
+	exclude?: boolean;
 } ) {
 	const ids = value ? value.split( ',' ).filter( Boolean ) : [];
 	const [ known, setKnown ] = useState< Record< string, PickablePost > >(
@@ -326,10 +352,17 @@ function PostPicker( {
 
 	return (
 		<fieldset className="wots-fieldset wots-picker">
-			<legend>Only these { noun }</legend>
+			<legend>
+				{ exclude ? 'Leave out these' : 'Only these' } { noun }
+			</legend>
 			<p className="wots-hint">
-				Leave empty to choose { noun } automatically.{ ' ' }
-				{ ids.length > 0 && ( PICK_NOTES[ sourceKey ] ?? '' ) }
+				{ exclude
+					? `Never shown, even when they’d otherwise match.`
+					: `Leave empty to choose ${ noun } automatically. ${
+							ids.length > 0
+								? ( PICK_NOTES[ sourceKey ] ?? '' )
+								: ''
+						}` }
 			</p>
 			{ ids.length > 0 && (
 				<ol className="wots-picker__list">
@@ -350,20 +383,24 @@ function PostPicker( {
 											: 'not found' }
 									</span>
 								</span>
-								<Button
-									size="small"
-									icon="arrow-up-alt2"
-									label="Move up"
-									disabled={ i === 0 }
-									onClick={ () => move( i, -1 ) }
-								/>
-								<Button
-									size="small"
-									icon="arrow-down-alt2"
-									label="Move down"
-									disabled={ i === ids.length - 1 }
-									onClick={ () => move( i, 1 ) }
-								/>
+								{ ! exclude && (
+									<>
+										<Button
+											size="small"
+											icon="arrow-up-alt2"
+											label="Move up"
+											disabled={ i === 0 }
+											onClick={ () => move( i, -1 ) }
+										/>
+										<Button
+											size="small"
+											icon="arrow-down-alt2"
+											label="Move down"
+											disabled={ i === ids.length - 1 }
+											onClick={ () => move( i, 1 ) }
+										/>
+									</>
+								) }
 								<Button
 									size="small"
 									icon="no-alt"
@@ -380,7 +417,7 @@ function PostPicker( {
 			<ComboboxControl
 				__next40pxDefaultSize
 				__nextHasNoMarginBottom
-				label={ `Add ${ noun }` }
+				label={ exclude ? `Leave out ${ noun }` : `Add ${ noun }` }
 				help="Type a title or an ID."
 				value={ null }
 				options={ results
@@ -496,13 +533,17 @@ function TermFilter( {
 	sourceKey,
 	meta,
 	setMeta,
+	exclude = false,
 }: {
 	sourceKey: string;
 	meta: Meta;
 	setMeta: SetMeta;
+	/** Edit the "leave out" terms instead of the "only" terms. */
+	exclude?: boolean;
 } ) {
 	const [ groups, setGroups ] = useState< TaxonomyTerms[] | null >( null );
-	const filter = parseFilter( meta._term_filter );
+	const field = exclude ? '_exclude_terms' : '_term_filter';
+	const filter = parseFilter( meta[ field ] );
 
 	useEffect( () => {
 		let live = true;
@@ -529,9 +570,7 @@ function TermFilter( {
 			}
 		} );
 		setMeta( {
-			_term_filter: Object.keys( next ).length
-				? JSON.stringify( next )
-				: '',
+			[ field ]: Object.keys( next ).length ? JSON.stringify( next ) : '',
 		} );
 	};
 
@@ -542,10 +581,13 @@ function TermFilter( {
 
 	return (
 		<fieldset className="wots-fieldset wots-filter">
-			<legend>Only show items in…</legend>
+			<legend>
+				{ exclude ? 'Leave out items in…' : 'Only show items in…' }
+			</legend>
 			<p className="wots-hint">
-				Nothing ticked = everything. Tick more than one to include any
-				of them.
+				{ exclude
+					? 'Anything in a ticked category or tag is skipped, even if it matches above.'
+					: 'Nothing ticked = everything. Tick more than one to include any of them.' }
 			</p>
 			{ ! groups && <p className="wots-subtle">Loading…</p> }
 			{ withTerms.map( ( g ) => (
@@ -586,6 +628,8 @@ function MatchCount( { meta }: { meta: Meta } ) {
 		meta._max_items,
 		meta._featured_month_year,
 		meta._post_ids,
+		meta._exclude_ids,
+		meta._exclude_terms,
 	].join( '|' );
 
 	useEffect( () => {

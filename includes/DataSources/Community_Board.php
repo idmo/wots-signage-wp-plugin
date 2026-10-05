@@ -112,6 +112,9 @@ final class Community_Board implements Data_Source, Filterable, Pickable {
 			if ( $filter && ! Helpers::matches_terms( $post->ID, $filter ) ) {
 				continue;
 			}
+			if ( Helpers::excluded( $post->ID, $block_config, $this->taxonomies() ) ) {
+				continue;
+			}
 
 			$items[] = $this->normalize( $post, $ends );
 			if ( count( $items ) >= $max ) {

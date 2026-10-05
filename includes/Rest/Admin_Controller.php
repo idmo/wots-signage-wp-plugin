@@ -342,8 +342,9 @@ final class Admin_Controller {
 		if ( ! $source ) {
 			return new \WP_Error( 'wots_signage_not_found', 'Unknown data source.', array( 'status' => 404 ) );
 		}
-		$max   = max( 1, min( 100, (int) ( $request->get_param( 'max_items' ) ?? 3 ) ) );
-		$terms = json_decode( (string) $request->get_param( 'terms' ), true );
+		$max     = max( 1, min( 100, (int) ( $request->get_param( 'max_items' ) ?? 3 ) ) );
+		$terms   = json_decode( (string) $request->get_param( 'terms' ), true );
+		$exclude = json_decode( (string) $request->get_param( 'exclude_terms' ), true );
 		return new \WP_REST_Response(
 			array(
 				'available' => $source->is_available(),
@@ -357,6 +358,8 @@ final class Admin_Controller {
 						'range_end'           => sanitize_text_field( (string) $request->get_param( 'range_end' ) ),
 						'terms'               => is_array( $terms ) ? $terms : array(),
 						'post_ids'            => array_filter( array_map( 'intval', explode( ',', (string) $request->get_param( 'post_ids' ) ) ) ),
+						'exclude_ids'         => array_filter( array_map( 'intval', explode( ',', (string) $request->get_param( 'exclude_ids' ) ) ) ),
+						'exclude_terms'       => is_array( $exclude ) ? $exclude : array(),
 					)
 				),
 			)

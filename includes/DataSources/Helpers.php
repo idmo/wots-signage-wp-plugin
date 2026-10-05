@@ -258,4 +258,38 @@ final class Helpers {
 			get_posts( $args )
 		);
 	}
+
+	/**
+	 * Post IDs the block leaves out.
+	 *
+	 * @return int[]
+	 */
+	public static function exclude_ids( array $block_config ): array {
+		return array_values( array_unique( array_filter( array_map( 'intval', (array) ( $block_config['exclude_ids'] ?? array() ) ) ) ) );
+	}
+
+	/**
+	 * Whether the block leaves this post out: its ID was listed, or it has
+	 * any of the left-out terms. Taxonomies the post type doesn't use are
+	 * checked against $other_id instead (e.g. a recommendation's book).
+	 *
+	 * @param array $allowed Taxonomy slug => label, from the source.
+	 */
+	public static function excluded( int $post_id, array $block_config, array $allowed, int $other_id = 0 ): bool {
+		if ( in_array( $post_id, self::exclude_ids( $block_config ), true ) ) {
+			return true;
+		}
+		foreach ( self::term_filter( $block_config['exclude_terms'] ?? array(), $allowed ) as $taxonomy => $ids ) {
+			$target = is_object_in_taxonomy( (string) get_post_type( $post_id ), $taxonomy ) ? $post_id : $other_id;
+			if ( $target && has_term( $ids, $taxonomy, $target ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Does the block leave anything out? */
+	public static function excludes_any( array $block_config ): bool {
+		return (bool) self::exclude_ids( $block_config ) || ! empty( array_filter( (array) ( $block_config['exclude_terms'] ?? array() ) ) );
+	}
 }

@@ -45,6 +45,7 @@ final class Import_Export {
 		'_meta_color',
 		'_transition',
 		'_content_animation',
+		'_shuffle',
 		'_event_range',
 		'_range_days',
 		'_range_start',
@@ -237,7 +238,9 @@ final class Import_Export {
 			foreach ( self::MEDIA_META as $key ) {
 				$media_refs[ $key ] = $add_media( (int) get_post_meta( $block_id, $key, true ) );
 			}
-			$terms = get_the_terms( $block_id, PostTypes::CATEGORY );
+			// Every image of a multi-image block, in order.
+			$image_refs = array_values( array_filter( array_map( $add_media, Resolver::image_ids( $block_id ) ) ) );
+			$terms      = get_the_terms( $block_id, PostTypes::CATEGORY );
 
 			$blocks[ 'b' . $block_id ] = array(
 				'ref'        => 'b' . $block_id,
@@ -246,7 +249,9 @@ final class Import_Export {
 				'meta'       => $meta,
 				'media'      => array_filter( $media_refs ),
 				'template'   => $add_template( (int) get_post_meta( $block_id, self::TEMPLATE_META, true ) ),
+				'images'     => $image_refs,
 				'filter'     => self::term_filter_to_slugs( (string) get_post_meta( $block_id, self::TERM_FILTER_META, true ) ),
+				'exclude'    => self::term_filter_to_slugs( (string) get_post_meta( $block_id, '_exclude_terms', true ) ),
 				'categories' => is_array( $terms ) ? array_map( $add_category, $terms ) : array(),
 			);
 		}
@@ -470,8 +475,14 @@ final class Import_Export {
 				$ref          = $b['media'][ $key ] ?? null;
 				$meta[ $key ] = $ref && isset( $media_map[ $ref ] ) ? $media_map[ $ref ] : 0;
 			}
+			$images             = array_values( array_filter( array_map( static fn( $r ) => $media_map[ $r ] ?? 0, (array) ( $b['images'] ?? array() ) ) ) );
+			$meta['_image_ids'] = implode( ',', $images );
+			if ( $images ) {
+				$meta['_image_id'] = $images[0];
+			}
 			$meta[ self::TEMPLATE_META ]    = ! empty( $b['template'] ) && ! empty( $template_map[ $b['template'] ] ) ? $template_map[ $b['template'] ] : 0;
 			$meta[ self::TERM_FILTER_META ] = self::term_filter_from_slugs( $b['filter'] ?? array() );
+			$meta['_exclude_terms']         = self::term_filter_from_slugs( $b['exclude'] ?? array() );
 
 			$status   = in_array( $b['status'] ?? 'publish', array( 'publish', 'draft', 'private' ), true ) ? $b['status'] : 'publish';
 			$decision = '';

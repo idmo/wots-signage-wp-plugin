@@ -127,18 +127,31 @@ final class Resolver {
 
 		switch ( $type ) {
 			case self::TYPE_IMAGE:
-				$image = Media::image( (int) get_post_meta( $block_id, '_image_id', true ), 'full' );
-				if ( ! $image ) {
-					return array();
+				// One slide per image, each for the block's duration.
+				$ids = self::image_ids( $block_id );
+				if ( $ids && get_post_meta( $block_id, '_shuffle', true ) ) {
+					shuffle( $ids );
 				}
-				return array(
-					$base + array(
-						'type'     => 'image',
-						'duration' => self::duration( $block_id, 'image' ),
-						'fit'      => self::fit( $block_id ),
-						'image'    => $image,
-					),
-				);
+				$out      = array();
+				$duration = self::duration( $block_id, 'image' );
+				$fit      = self::fit( $block_id );
+				foreach ( $ids as $n => $image_id ) {
+					$image = Media::image( $image_id, 'full' );
+					if ( ! $image ) {
+						continue; // Deleted from the library: skip, don't fail.
+					}
+					$out[] = array_merge(
+						$base,
+						array(
+							'key'      => count( $ids ) > 1 ? 'b' . $block_id . '-' . $n . '-' . $image_id : $base['key'],
+							'type'     => 'image',
+							'duration' => $duration,
+							'fit'      => $fit,
+							'image'    => $image,
+						)
+					);
+				}
+				return $out;
 
 			case self::TYPE_VIDEO:
 				$video = Media::video( (int) get_post_meta( $block_id, '_video_id', true ) );
@@ -224,7 +237,8 @@ final class Resolver {
 	 * What a dynamic block asks its data source for.
 	 */
 	public static function source_config( int $block_id ): array {
-		$terms = json_decode( (string) get_post_meta( $block_id, '_term_filter', true ), true );
+		$terms   = json_decode( (string) get_post_meta( $block_id, '_term_filter', true ), true );
+		$exclude = json_decode( (string) get_post_meta( $block_id, '_exclude_terms', true ), true );
 		return array(
 			'max_items'           => (int) get_post_meta( $block_id, '_max_items', true ),
 			'featured_month_year' => (string) get_post_meta( $block_id, '_featured_month_year', true ),
@@ -234,6 +248,8 @@ final class Resolver {
 			'range_end'           => (string) get_post_meta( $block_id, '_range_end', true ),
 			'terms'               => is_array( $terms ) ? $terms : array(),
 			'post_ids'            => array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $block_id, '_post_ids', true ) ) ) ),
+			'exclude_ids'         => array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $block_id, '_exclude_ids', true ) ) ) ),
+			'exclude_terms'       => is_array( $exclude ) ? $exclude : array(),
 		);
 	}
 
@@ -302,6 +318,21 @@ final class Resolver {
 			'list'  => 'default_item_duration',
 		);
 		return (int) $settings[ $map[ $kind ] ?? 'default_image_duration' ];
+	}
+
+	/**
+	 * An image block's attachment IDs, in order. Blocks saved before
+	 * multi-image support only have _image_id.
+	 *
+	 * @return int[]
+	 */
+	public static function image_ids( int $block_id ): array {
+		$ids = array_values( array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $block_id, '_image_ids', true ) ) ) ) );
+		if ( ! $ids ) {
+			$single = (int) get_post_meta( $block_id, '_image_id', true );
+			$ids    = $single ? array( $single ) : array();
+		}
+		return $ids;
 	}
 
 	private static function fit( int $block_id ): string {

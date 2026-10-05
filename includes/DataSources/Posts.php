@@ -70,8 +70,22 @@ final class Posts implements Data_Source, Filterable, Pickable {
 			$args['post__in'] = $ids;
 			$args['orderby']  = 'post__in';
 		}
-		if ( $filter ) {
-			$args['tax_query'] = Helpers::tax_query( $filter ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- small, capped query.
+		$exclude_ids   = Helpers::exclude_ids( $block_config );
+		$exclude_terms = Helpers::term_filter( $block_config['exclude_terms'] ?? array(), $this->taxonomies() );
+		if ( $exclude_ids ) {
+			$args['post__not_in'] = $exclude_ids; // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- small, capped query.
+		}
+		if ( $filter || $exclude_terms ) {
+			$tax_query = Helpers::tax_query( $filter );
+			foreach ( $exclude_terms as $taxonomy => $ids ) {
+				$tax_query[] = array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'term_id',
+					'terms'    => $ids,
+					'operator' => 'NOT IN',
+				);
+			}
+			$args['tax_query'] = $tax_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- small, capped query.
 		}
 
 		return array_map( array( $this, 'normalize' ), get_posts( $args ) );

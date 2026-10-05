@@ -141,6 +141,22 @@ final class Featured_Readers implements Data_Source, Filterable, Pickable {
 		}
 
 		$entries = $this->entries( (string) $target, Helpers::term_filter( $block_config['terms'] ?? array(), $this->taxonomies() ), $readers );
+		if ( Helpers::excludes_any( $block_config ) ) {
+			$taxonomies = $this->taxonomies();
+			$entries    = array_values(
+				array_filter(
+					$entries,
+					static function ( $entry ) use ( $block_config, $taxonomies ) {
+						// Leaving out a reader drops all their books.
+						if ( in_array( (int) $entry['fields']['reader_id'], Helpers::exclude_ids( $block_config ), true ) ) {
+							return false;
+						}
+						$config = array( 'exclude_terms' => $block_config['exclude_terms'] ?? array() );
+						return ! Helpers::excluded( (int) $entry['rec_id'], $config, $taxonomies, (int) $entry['book_id'] );
+					}
+				)
+			);
+		}
 		$entries = self::group_by_reader( $entries );
 		if ( $readers ) {
 			// Picked readers play in the order they were picked.
@@ -213,6 +229,9 @@ final class Featured_Readers implements Data_Source, Filterable, Pickable {
 			$reader = $readers[ $reader_id ];
 			$out[]  = array(
 				'id'      => 'rec-' . $rec->ID,
+				// For filtering; not sent to the player.
+				'rec_id'  => $rec->ID,
+				'book_id' => $book_id,
 				'ends_at' => null,
 				'fields'  => array(
 					'book_cover'   => Media::image( (int) $product->get_image_id(), 'full' ),
