@@ -48,7 +48,40 @@ jobs:
           [ -s notes.md ] || echo "Version $VERSION" > notes.md
           cat notes.md
 
+      # What WordPress reads to learn about updates (includes/Updater.php).
+      - name: Update metadata (wots-signage.json)
+        run: |
+          node - <<'JS'
+          const fs = require( 'fs' );
+          const tag = process.env.GITHUB_REF_NAME;
+          const header = fs.readFileSync( 'wots-signage.php', 'utf8' );
+          const field = ( name ) =>
+            ( header.match( new RegExp( `^\\s*\\*\\s*${ name }:\\s*(.+)$`, 'm' ) ) || [] )[ 1 ]?.trim() ?? '';
+          const esc = ( t ) => t.replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' );
+          const items = fs.readFileSync( 'notes.md', 'utf8' )
+            .split( '\n' )
+            .filter( ( l ) => l.startsWith( '- ' ) )
+            .map( ( l ) => `<li>${ esc( l.slice( 2 ) ) }</li>` )
+            .join( '' );
+          const repo = `https://github.com/${ process.env.GITHUB_REPOSITORY }`;
+          fs.writeFileSync( 'wots-signage.json', JSON.stringify( {
+            name: field( 'Plugin Name' ),
+            slug: 'wots-signage',
+            version: tag.replace( /^v/, '' ),
+            download_url: `${ repo }/releases/download/${ tag }/wots-signage.zip`,
+            homepage: repo,
+            requires: field( 'Requires at least' ),
+            requires_php: field( 'Requires PHP' ),
+            last_updated: new Date().toISOString().slice( 0, 19 ).replace( 'T', ' ' ),
+            sections: {
+              description: field( 'Description' ) || 'Digital signage for WordPress.',
+              changelog: `<h4>${ esc( tag ) }</h4><ul>${ items }</ul>`,
+            },
+          }, null, 2 ) );
+          JS
+          cat wots-signage.json
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" wots-signage.zip --title "$GITHUB_REF_NAME" --notes-file notes.md
+        run: gh release create "$GITHUB_REF_NAME" wots-signage.zip wots-signage.json --title "$GITHUB_REF_NAME" --notes-file notes.md

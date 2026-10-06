@@ -226,7 +226,7 @@ bin/release.sh patch     # 0.2.1 -> 0.2.2 for fixes (or: minor, major, or an exa
 git push && git push --tags
 ```
 
-`release.sh` sets the version in `wots-signage.php` and `package.json`, adds a `CHANGELOG.md` entry from your commit messages (edit it before confirming if you like; it becomes the release notes), commits, and tags. Pushing the tag runs `.github/workflows/release.yml`, which builds `wots-signage.zip` and attaches it to a GitHub release. Watch it under the repo's **Actions** tab; it takes a couple of minutes.
+`release.sh` sets the version in `wots-signage.php` and `package.json`, adds a `CHANGELOG.md` entry from your commit messages (edit it before confirming if you like; it becomes the release notes), commits, and tags. Pushing the tag runs `.github/workflows/release.yml`, which builds `wots-signage.zip` and a small `wots-signage.json` and attaches both to a GitHub release. Sites read that JSON file to learn about updates, an ordinary download rather than a GitHub API call, so the 60-calls-an-hour limit GitHub puts on shared hosts like Pressable doesn't apply. Watch it under the repo's **Actions** tab; it takes a couple of minutes.
 
 Then update **staging** first, check the TV preview, and update the live site. The shop player reloads itself after the update.
 
