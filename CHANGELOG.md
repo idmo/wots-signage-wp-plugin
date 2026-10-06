@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 (2026-10-05)
+
+- Fixed: "Could not determine if updates are available … GitHub API error 403" on the Plugins screen. Update checks now read a small file attached to each release instead of calling the GitHub API, which shared hosts like Pressable can run out of.
+
 ## 0.6.0 (2026-10-05)
 
 - Template builder: custom grids of up to 4 rows × 4 zones (e.g. a banner over three columns), with draggable dividers. Save a grid by name to reuse it in other templates.
