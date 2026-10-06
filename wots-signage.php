@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WOTS Signage
  * Description:       Digital signage for Word on the Street Books — blocks, shows, templates, and a kiosk player.
- * Version:           0.5.0
+ * Version:           0.6.0
  * Requires at least: 6.5
  * Requires PHP:      8.3
  * Author:            Brian Maggi
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WOTS_SIGNAGE_VERSION', '0.5.0' );
+define( 'WOTS_SIGNAGE_VERSION', '0.6.0' );
 define( 'WOTS_SIGNAGE_FILE', __FILE__ );
 define( 'WOTS_SIGNAGE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WOTS_SIGNAGE_URL', plugin_dir_url( __FILE__ ) );

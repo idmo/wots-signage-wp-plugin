@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 (2026-10-05)
+
+- Template builder: custom grids of up to 4 rows × 4 zones (e.g. a banner over three columns), with draggable dividers. Save a grid by name to reuse it in other templates.
+- Template spacing: panel padding and space between zones can go to zero, and a template can make the panel fill the whole screen.
+
 ## 0.5.0 (2026-10-05)
 
 - Leave out: every dynamic block can skip specific items (by title or ID) and anything in chosen categories or tags, so blocks can share a feed and look different without repeating items.
