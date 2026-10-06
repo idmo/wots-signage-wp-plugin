@@ -453,6 +453,36 @@
 	text-decoration: underline;
 }
 
+/* Custom grid: rows of zones (flex, so sizes are shares after the gaps). */
+.wots-tpl.is-custom {
+	display: flex;
+	flex-direction: column;
+}
+
+.wots-tpl__row {
+	display: flex;
+	min-height: 0;
+}
+
+.wots-tpl__row > .wots-tpl__region {
+	min-width: 0;
+}
+
+/* "Fill the screen": the panel covers the whole stage. */
+.wots-panel.is-fill {
+	width: 100%;
+	max-width: none;
+	height: 100%;
+	max-height: none;
+	border-radius: 0;
+}
+
+.wots-panel.is-fill .wots-tpl {
+	flex: 1;
+	height: auto;
+	min-height: 0;
+}
+
 /* The template's "Text" element keeps the line breaks you type. */
 .wots-el.is-free {
 	white-space: pre-line;

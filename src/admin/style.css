@@ -1109,3 +1109,147 @@ button.wots-region__label:focus-visible {
 	padding-top: 4px;
 	border-top: 1px dashed #c3c4c7;
 }
+
+/* Template Builder: custom grid */
+.wots-regions.is-custom {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+.wots-regions__row {
+	display: flex;
+	min-height: 0;
+}
+
+.wots-regions__row > .wots-region {
+	min-width: 0;
+}
+
+.wots-divider {
+	flex: none;
+	position: relative;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.wots-divider.is-col {
+	width: 8px;
+	cursor: col-resize;
+}
+
+.wots-divider.is-row {
+	height: 8px;
+	cursor: row-resize;
+}
+
+.wots-divider::after {
+	content: "";
+	position: absolute;
+	border-radius: 2px;
+	background: #72aee6;
+	opacity: 0.35;
+	transition: opacity 0.15s;
+}
+
+.wots-divider.is-col::after {
+	top: 35%;
+	bottom: 35%;
+	left: 2px;
+	width: 4px;
+}
+
+.wots-divider.is-row::after {
+	left: 40%;
+	right: 40%;
+	top: 2px;
+	height: 4px;
+}
+
+.wots-divider:hover::after,
+.wots-divider:focus-visible::after {
+	opacity: 1;
+}
+
+.wots-divider:focus-visible {
+	outline: none;
+}
+
+.wots-builder__subhead {
+	margin: 16px 0 4px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #1d2327;
+}
+
+.wots-grid-editor__rows {
+	margin: 0 0 8px;
+	padding: 0;
+	list-style: none;
+}
+
+.wots-grid-editor__rows li {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.wots-grid-editor__rows li > span:first-child {
+	width: 52px;
+	font-weight: 600;
+}
+
+.wots-grid-editor__count {
+	min-width: 60px;
+	text-align: center;
+}
+
+.wots-grid-editor__save {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.wots-grid-editor__save .components-base-control {
+	flex: 1;
+}
+
+/* Saved layouts in the picker, with a delete button */
+.wots-layout-saved {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.wots-layout-saved .wots-layout-pick {
+	flex: 1;
+}
+
+/* Layout thumbnails for custom grids */
+.wots-layout-thumb.is-custom {
+	display: flex;
+	flex-direction: column;
+}
+
+.wots-layout-thumb__row {
+	display: flex;
+	gap: 3px;
+	min-height: 0;
+}
+
+.wots-layout-thumb.is-custom > .wots-layout-thumb__row + .wots-layout-thumb__row {
+	margin-top: 3px;
+}
+
+.wots-layout-thumb__row > span {
+	background: #72aee6;
+	border-radius: 2px;
+}
+
+.wots-layout-thumb.is-custom > .wots-layout-thumb__row {
+	background: none;
+}

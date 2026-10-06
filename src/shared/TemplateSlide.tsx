@@ -29,6 +29,48 @@ export function TemplateSlide( {
 	/** element key → type, from the data source's palette. */
 	elementTypes?: Record< string, string >;
 } ) {
+	const render = ( region: string ) =>
+		( template.regions[ region ] ?? [] ).map( ( placement, i ) => (
+			<ElementRenderer
+				key={ `${ region }-${ placement.element }-${ i }` }
+				placement={ placement }
+				type={
+					elementTypes?.[ placement.element ] ??
+					guessType( placement.element )
+				}
+				value={ fields[ placement.element ] }
+			/>
+		) );
+
+	// Custom grid: rows of zones, each row and zone sized in percent.
+	if ( template.layout === 'custom' ) {
+		const gap = template.design?.gap ?? 32;
+		const rows = template.design?.rows?.length
+			? template.design.rows
+			: [ { h: 100, cols: [ 100 ] } ];
+		return (
+			<div className="wots-tpl is-custom" style={ { gap } }>
+				{ rows.map( ( row, r ) => (
+					<div
+						key={ r }
+						className="wots-tpl__row"
+						style={ { flex: `${ row.h } 1 0`, gap } }
+					>
+						{ row.cols.map( ( w, c ) => (
+							<div
+								key={ c }
+								className="wots-tpl__region"
+								style={ { flex: `${ w } 1 0` } }
+							>
+								{ render( `r${ r + 1 }c${ c + 1 }` ) }
+							</div>
+						) ) }
+					</div>
+				) ) }
+			</div>
+		);
+	}
+
 	const layout =
 		TEMPLATE_LAYOUTS[ template.layout ] ?? TEMPLATE_LAYOUTS.stack;
 	return (

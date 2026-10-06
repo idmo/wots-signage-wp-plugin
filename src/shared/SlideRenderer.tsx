@@ -68,7 +68,12 @@ export function SlideContent( {
 
 	if ( item.template ) {
 		return (
-			<PanelBox panel={ item.panel } wide contentKey={ item.key }>
+			<PanelBox
+				panel={ item.panel }
+				wide
+				contentKey={ item.key }
+				design={ item.template.design }
+			>
 				<TemplateSlide
 					template={ item.template }
 					fields={ item.fields }

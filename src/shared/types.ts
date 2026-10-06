@@ -91,6 +91,21 @@ export interface TemplateDesign {
 	background: string;
 	/** 0–90: how much to darken that background. */
 	dim: number;
+	/** Panel padding in stage px (horizontal is ⅓ more). 0 = edge to edge. */
+	inset: number;
+	/** Space between zones, stage px. */
+	gap: number;
+	/** The panel fills the whole screen. */
+	fill: boolean;
+	/** Custom-grid layout: rows of zones, sizes in percent. */
+	rows: GridRow[];
+}
+
+export interface GridRow {
+	/** Percent of the height. */
+	h: number;
+	/** Percent of the row's width, one per zone. */
+	cols: number[];
 }
 
 export const DEFAULT_DESIGN: TemplateDesign = {
@@ -98,11 +113,15 @@ export const DEFAULT_DESIGN: TemplateDesign = {
 	row: 50,
 	background: '',
 	dim: 30,
+	inset: 48,
+	gap: 32,
+	fill: false,
+	rows: [],
 };
 
 export interface ResolvedTemplate {
 	id: number;
-	layout: 'full' | 'stack' | 'split_left' | 'split_right';
+	layout: 'full' | 'stack' | 'split_left' | 'split_right' | 'custom';
 	regions: Record< string, ElementPlacement[] >;
 	design?: TemplateDesign;
 }

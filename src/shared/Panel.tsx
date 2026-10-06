@@ -89,14 +89,18 @@ export function PanelBox( {
 	panel,
 	wide,
 	contentKey,
+	design,
 	children,
 }: {
 	panel: PanelStyle;
 	/** List and template slides run taller than a single built-in card. */
 	wide?: boolean;
 	contentKey: string;
+	/** A template's padding and fill-the-screen choice. */
+	design?: { inset?: number; fill?: boolean } | null;
 	children: ReactNode;
 } ) {
+	const inset = design?.inset;
 	const anim =
 		panel.animation && panel.animation !== 'none'
 			? ` wots-anim-${ panel.animation }`
@@ -105,9 +109,18 @@ export function PanelBox( {
 		<div className="wots-panel-wrap">
 			<div
 				key={ contentKey }
-				className={ `wots-panel${ wide ? ' is-wide' : '' }${ anim }` }
+				className={ `wots-panel${ wide ? ' is-wide' : '' }${
+					design?.fill ? ' is-fill' : ''
+				}${ anim }` }
 				style={ {
 					...panelVars( panel ),
+					...( typeof inset === 'number'
+						? {
+								padding: `${ inset }px ${ Math.round(
+									( inset * 4 ) / 3
+								) }px`,
+							}
+						: {} ),
 					backgroundColor: hexToRgba( panel.color, panel.opacity ),
 					animationDuration: `${ panel.animation_ms }ms`,
 				} }

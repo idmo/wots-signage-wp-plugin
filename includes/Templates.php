@@ -10,12 +10,15 @@ defined( 'ABSPATH' ) || exit;
  *
  * A template is a signage_template post:
  *   _data_source  events | community_board | featured_readers
- *   _layout       full | stack | split_left | split_right
+ *   _layout       full | stack | split_left | split_right | custom
  *   _placements   JSON { region: [ { element, options }, … ] }
  *   _design       JSON { col, row, background, dim } — region sizes (percent
  *                 of the width/height given to the first column/row), an
  *                 image element shown full-screen behind the panel, and how
- *                 much to darken it.
+ *                 much to darken it; inset (panel padding, px), gap (space
+ *                 between zones, px), fill (panel fills the screen); and for
+ *                 the custom layout, rows: [ { h, cols: [ w, … ] }, … ] in
+ *                 percent, with zones named r{row}c{col}.
  *
  * Layouts mirror lib/templates.ts from the Next.js build so its templates
  * can be imported unchanged. Keep src/shared/templates.ts in step.
@@ -24,6 +27,8 @@ final class Templates {
 
 	public const LAYOUTS = array(
 		'full'        => array( 'main' ),
+		// Rows of zones built in the editor; regions come from _design rows.
+		'custom'      => array(),
 		'stack'       => array( 'top', 'bl', 'br' ),
 		'split_left'  => array( 'lt', 'lb', 'right' ),
 		'split_right' => array( 'left', 'rt', 'rb' ),
@@ -115,7 +120,122 @@ final class Templates {
 			'row'        => $clamp( $design['row'] ?? null, 15, 85, 50 ),
 			'background' => sanitize_key( (string) ( $design['background'] ?? '' ) ),
 			'dim'        => $clamp( $design['dim'] ?? null, 0, 90, 30 ),
+			'inset'      => $clamp( $design['inset'] ?? null, 0, 160, 48 ),
+			'gap'        => $clamp( $design['gap'] ?? null, 0, 120, 32 ),
+			'fill'       => ! empty( $design['fill'] ),
+			'rows'       => self::normalize_rows( $design['rows'] ?? null ),
 		);
+	}
+
+	public const MAX_ROWS = 4;
+	public const MAX_COLS = 4;
+
+	/**
+	 * Custom-grid rows: 1–4 rows of 1–4 zones, sizes as whole percents
+	 * that add up to 100 (each at least 5).
+	 *
+	 * @param mixed $rows [ { h, cols: [ w, … ] }, … ].
+	 */
+	public static function normalize_rows( $rows ): array {
+		$rows = is_array( $rows ) ? array_slice( array_values( $rows ), 0, self::MAX_ROWS ) : array();
+		$out  = array();
+		foreach ( $rows as $row ) {
+			$cols  = is_array( $row['cols'] ?? null ) ? array_slice( array_values( $row['cols'] ), 0, self::MAX_COLS ) : array( 100 );
+			$out[] = array(
+				'h'    => is_numeric( $row['h'] ?? null ) ? (float) $row['h'] : 0,
+				'cols' => self::percents( $cols ? $cols : array( 100 ) ),
+			);
+		}
+		if ( ! $out ) {
+			return array();
+		}
+		$heights = self::percents( array_column( $out, 'h' ) );
+		foreach ( $out as $i => $row ) {
+			$out[ $i ]['h'] = $heights[ $i ];
+		}
+		return $out;
+	}
+
+	/**
+	 * Scale numbers to whole percents summing to 100, none below 5.
+	 * Missing or zero values share the space evenly.
+	 *
+	 * @param array $values Sizes.
+	 * @return int[]
+	 */
+	private static function percents( array $values ): array {
+		$values = array_map( static fn( $v ) => is_numeric( $v ) && $v > 0 ? (float) $v : 0.0, $values );
+		$count  = count( $values );
+		if ( 0 === $count ) {
+			return array();
+		}
+		$total = array_sum( $values );
+		if ( $total <= 0 ) {
+			$values = array_fill( 0, $count, 1.0 );
+			$total  = (float) $count;
+		}
+		$out = array_map( static fn( $v ) => max( 5, (int) round( $v / $total * 100 ) ), $values );
+		// Put any rounding difference on the largest zone.
+		$max         = array_keys( $out, max( $out ), true )[0];
+		$out[ $max ] = max( 5, $out[ $max ] + 100 - array_sum( $out ) );
+		return $out;
+	}
+
+	/**
+	 * Zone names for a layout: the preset's, or r1c1… for a custom grid.
+	 *
+	 * @return string[]
+	 */
+	public static function regions_for( string $layout, array $design ): array {
+		if ( 'custom' !== $layout ) {
+			return self::LAYOUTS[ $layout ] ?? self::LAYOUTS['stack'];
+		}
+		$regions = array();
+		foreach ( $design['rows'] ?? array() as $r => $row ) {
+			foreach ( array_keys( $row['cols'] ) as $c ) {
+				$regions[] = 'r' . ( $r + 1 ) . 'c' . ( $c + 1 );
+			}
+		}
+		return $regions ? $regions : array( 'r1c1' );
+	}
+
+	// -----------------------------------------------------------------------
+	// Saved grid layouts, reusable across templates.
+	// -----------------------------------------------------------------------
+
+	public const LAYOUTS_OPTION = 'wots_signage_layouts';
+
+	/**
+	 * @return array<int, array{id: string, name: string, rows: array}>
+	 */
+	public static function saved_layouts(): array {
+		$saved = get_option( self::LAYOUTS_OPTION, array() );
+		return is_array( $saved ) ? array_values( $saved ) : array();
+	}
+
+	/**
+	 * Add or replace (same name) a saved layout.
+	 */
+	public static function save_layout( string $name, $rows ): array {
+		$name = trim( sanitize_text_field( $name ) );
+		$rows = self::normalize_rows( $rows );
+		if ( '' === $name || ! $rows ) {
+			return self::saved_layouts();
+		}
+		$layouts   = array_values( array_filter( self::saved_layouts(), static fn( $l ) => strtolower( $l['name'] ) !== strtolower( $name ) ) );
+		$layouts[] = array(
+			'id'   => substr( md5( $name . wp_rand() ), 0, 10 ),
+			'name' => $name,
+			'rows' => $rows,
+		);
+		update_option( self::LAYOUTS_OPTION, $layouts, false );
+		return $layouts;
+	}
+
+	public static function delete_layout( string $id ): array {
+		$layouts = array_values( array_filter( self::saved_layouts(), static fn( $l ) => $l['id'] !== $id ) );
+		update_option( self::LAYOUTS_OPTION, $layouts, false );
+		return $layouts;
 	}
 
 	public static function sanitize_design_json( $value ): string {
@@ -142,17 +262,18 @@ final class Templates {
 			return null;
 		}
 		$placements = self::normalize_placements( (string) get_post_meta( $template_id, '_placements', true ) );
+		$design     = self::normalize_design( (string) get_post_meta( $template_id, '_design', true ) );
 
 		// Only the layout's own regions, in order.
 		$regions = array();
-		foreach ( self::LAYOUTS[ $layout ] as $region ) {
+		foreach ( self::regions_for( $layout, $design ) as $region ) {
 			$regions[ $region ] = $placements[ $region ] ?? array();
 		}
 		return array(
 			'id'      => $template_id,
 			'layout'  => $layout,
 			'regions' => $regions,
-			'design'  => self::normalize_design( (string) get_post_meta( $template_id, '_design', true ) ),
+			'design'  => $design,
 		);
 	}
 

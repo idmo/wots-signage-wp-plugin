@@ -3,6 +3,7 @@ import type { LayoutId } from '../shared/templates';
 import type {
 	ElementPlacement,
 	Fields,
+	GridRow,
 	Playlist,
 	StageSize,
 	TemplateDesign,
@@ -351,6 +352,26 @@ export const saveTemplate = ( t: TemplateRecord ) =>
 			},
 		},
 	} );
+/** A custom grid saved by name for reuse in other templates. */
+export interface SavedLayout {
+	id: string;
+	name: string;
+	rows: GridRow[];
+}
+export const getLayouts = () =>
+	api< SavedLayout[] >( { path: `${ NS }/layouts` } );
+export const saveLayout = ( name: string, rows: GridRow[] ) =>
+	api< SavedLayout[] >( {
+		path: `${ NS }/layouts`,
+		method: 'POST',
+		data: { name, rows },
+	} );
+export const deleteLayout = ( id: string ) =>
+	api< SavedLayout[] >( {
+		path: `${ NS }/layouts/${ id }`,
+		method: 'DELETE',
+	} );
+
 export const deleteTemplate = ( id: number ) =>
 	api( {
 		path: `/wp/v2/signage_template/${ id }?force=true`,

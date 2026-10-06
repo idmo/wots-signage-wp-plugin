@@ -26,20 +26,33 @@ import {
 	SelectControl,
 	TextControl,
 	TextareaControl,
+	ToggleControl,
 } from '@wordpress/components';
-import { useEffect, useMemo, useRef, useState } from '@wordpress/element';
+import {
+	Fragment,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from '@wordpress/element';
 import { PanelBackground, PanelBox, itemBackground } from '../shared/Panel';
 import { Stage } from '../shared/Stage';
 import { TemplateSlide } from '../shared/TemplateSlide';
 import {
-	REGION_LABELS,
+	MAX_COLS,
+	MAX_ROWS,
 	TEMPLATE_LAYOUTS,
 	clampSplit,
+	evenSplit,
 	gridStyle,
+	layoutRegions,
+	presetAsGrid,
+	regionLabel,
 	type LayoutId,
 } from '../shared/templates';
 import {
 	DEFAULT_DESIGN,
+	type GridRow,
 	type ElementPlacement,
 	type Fields,
 	type PanelStyle,
@@ -47,12 +60,17 @@ import {
 } from '../shared/types';
 import {
 	adminConfig,
+	deleteLayout,
 	deleteTemplate,
+	getLayouts,
 	previewSource,
+	saveLayout,
 	saveTemplate,
 	type DataSourceInfo,
+	type SavedLayout,
 	type TemplateRecord,
 } from './api';
+import { LayoutThumb } from './LayoutThumb';
 
 type Placements = Record< string, ElementPlacement[] >;
 
@@ -66,8 +84,12 @@ interface Props {
 }
 
 /** Keep placements that fit the layout; move orphans into its first region. */
-function fitToLayout( placements: Placements, layout: LayoutId ): Placements {
-	const regions = TEMPLATE_LAYOUTS[ layout ].regions as readonly string[];
+function fitToLayout(
+	placements: Placements,
+	layout: LayoutId,
+	design?: Pick< TemplateDesign, 'rows' >
+): Placements {
+	const regions = layoutRegions( layout, design );
 	const out: Placements = {};
 	regions.forEach( ( r ) => ( out[ r ] = [ ...( placements[ r ] ?? [] ) ] ) );
 	Object.entries( placements ).forEach( ( [ r, list ] ) => {
@@ -95,16 +117,25 @@ export function TemplateBuilder( {
 	const [ title, setTitle ] = useState( initial.title );
 	const [ source, setSource ] = useState( initial.data_source );
 	const [ layout, setLayout ] = useState< LayoutId >( initial.layout );
-	const [ placements, setPlacements ] = useState< Placements >(
-		fitToLayout( initial.placements, initial.layout )
-	);
 	const [ design, setDesign ] = useState< TemplateDesign >( {
 		...DEFAULT_DESIGN,
 		...initial.design,
 	} );
-	const [ selectedRegion, setSelectedRegion ] = useState< string >(
-		TEMPLATE_LAYOUTS[ initial.layout ].regions[ 0 ]
+	const [ placements, setPlacements ] = useState< Placements >(
+		fitToLayout( initial.placements, initial.layout, {
+			rows: initial.design?.rows ?? [],
+		} )
 	);
+	const [ selectedRegion, setSelectedRegion ] = useState< string >(
+		layoutRegions( initial.layout, initial.design )[ 0 ]
+	);
+	const [ saved, setSaved ] = useState< SavedLayout[] >( [] );
+
+	useEffect( () => {
+		getLayouts()
+			.then( setSaved )
+			.catch( () => {} );
+	}, [] );
 	const [ dragLabel, setDragLabel ] = useState< string | null >( null );
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
@@ -120,7 +151,6 @@ export function TemplateBuilder( {
 		() => Object.fromEntries( palette.map( ( e ) => [ e.key, e.label ] ) ),
 		[ palette ]
 	);
-	const regions = TEMPLATE_LAYOUTS[ layout ].regions as readonly string[];
 
 	const update = ( next: Placements ) => {
 		setPlacements( next );
@@ -135,9 +165,40 @@ export function TemplateBuilder( {
 	const imageElements = palette.filter( ( e ) => e.type === 'image' );
 
 	const changeLayout = ( next: LayoutId ) => {
+		if ( next === 'custom' && layout !== 'custom' ) {
+			// Start the grid from the current preset, keeping what's placed.
+			const { rows, map } = presetAsGrid( layout, design );
+			applyRows( rows, map );
+			return;
+		}
 		setLayout( next );
-		update( fitToLayout( placements, next ) );
-		setSelectedRegion( TEMPLATE_LAYOUTS[ next ].regions[ 0 ] );
+		update( fitToLayout( placements, next, design ) );
+		setSelectedRegion( layoutRegions( next, design )[ 0 ] );
+	};
+
+	/**
+	 * Switch to (or reshape) the custom grid. `map` renames zones, e.g.
+	 * when a preset becomes a grid; zones that disappear hand their
+	 * elements to the first zone.
+	 */
+	const applyRows = (
+		rows: GridRow[],
+		map: Record< string, string > = {}
+	) => {
+		const renamed: Placements = {};
+		Object.entries( placements ).forEach( ( [ r, list ] ) => {
+			const to = map[ r ] ?? r;
+			renamed[ to ] = [ ...( renamed[ to ] ?? [] ), ...list ];
+		} );
+		setLayout( 'custom' );
+		updateDesign( { rows } );
+		update( fitToLayout( renamed, 'custom', { rows } ) );
+		setSelectedRegion( ( cur ) => {
+			const zones = layoutRegions( 'custom', { rows } );
+			return zones.includes( map[ cur ] ?? cur )
+				? ( map[ cur ] ?? cur )
+				: zones[ 0 ];
+		} );
 	};
 
 	const changeSource = ( next: string ) => {
@@ -378,8 +439,9 @@ export function TemplateBuilder( {
 						role="radiogroup"
 						aria-label="Layout"
 					>
-						{ ( Object.keys( TEMPLATE_LAYOUTS ) as LayoutId[] ).map(
-							( id ) => (
+						{ ( Object.keys( TEMPLATE_LAYOUTS ) as LayoutId[] )
+							.filter( ( id ) => id !== 'custom' )
+							.map( ( id ) => (
 								<button
 									key={ id }
 									type="button"
@@ -388,31 +450,65 @@ export function TemplateBuilder( {
 									className={ `wots-layout-pick${ layout === id ? ' is-selected' : '' }` }
 									onClick={ () => changeLayout( id ) }
 								>
-									<span
-										className="wots-layout-thumb"
-										style={ {
-											gridTemplateAreas:
-												TEMPLATE_LAYOUTS[ id ].areas,
-										} }
-									>
-										{ TEMPLATE_LAYOUTS[ id ].regions.map(
-											( r ) => (
-												<span
-													key={ r }
-													style={ { gridArea: r } }
-												/>
-											)
-										) }
-									</span>
+									<LayoutThumb layout={ id } />
 									<span>
 										{ TEMPLATE_LAYOUTS[ id ].label }
 									</span>
 								</button>
-							)
-						) }
+							) ) }
+						{ saved.map( ( l ) => (
+							<div key={ l.id } className="wots-layout-saved">
+								<button
+									type="button"
+									role="radio"
+									aria-checked={ false }
+									className="wots-layout-pick"
+									onClick={ () => applyRows( l.rows ) }
+								>
+									<LayoutThumb
+										layout="custom"
+										design={ { rows: l.rows } }
+									/>
+									<span>{ l.name }</span>
+								</button>
+								<Button
+									size="small"
+									icon="no-alt"
+									label={ `Delete saved layout “${ l.name }”` }
+									showTooltip
+									onClick={ () =>
+										deleteLayout( l.id ).then( setSaved )
+									}
+								/>
+							</div>
+						) ) }
+						<button
+							type="button"
+							role="radio"
+							aria-checked={ layout === 'custom' }
+							className={ `wots-layout-pick${ layout === 'custom' ? ' is-selected' : '' }` }
+							onClick={ () => changeLayout( 'custom' ) }
+						>
+							<LayoutThumb layout="custom" design={ design } />
+							<span>Custom grid</span>
+						</button>
 					</div>
 
-					{ layout !== 'full' && (
+					{ layout === 'custom' && (
+						<GridEditor
+							rows={
+								design.rows.length
+									? design.rows
+									: [ { h: 100, cols: [ 100 ] } ]
+							}
+							onChange={ ( rows ) => applyRows( rows ) }
+							onSave={ ( name ) =>
+								saveLayout( name, design.rows ).then( setSaved )
+							}
+						/>
+					) }
+
+					{ layout !== 'full' && layout !== 'custom' && (
 						<>
 							<RangeControl
 								__next40pxDefaultSize
@@ -477,6 +573,36 @@ export function TemplateBuilder( {
 							}
 						/>
 					) }
+
+					<h3 className="wots-builder__subhead">Spacing</h3>
+					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						label="Panel padding"
+						help="Space between the panel’s edge and its content. 0 = edge to edge."
+						min={ 0 }
+						max={ 160 }
+						step={ 4 }
+						value={ design.inset }
+						onChange={ ( v ) => updateDesign( { inset: v ?? 0 } ) }
+					/>
+					<RangeControl
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+						label="Space between zones"
+						min={ 0 }
+						max={ 120 }
+						step={ 4 }
+						value={ design.gap }
+						onChange={ ( v ) => updateDesign( { gap: v ?? 0 } ) }
+					/>
+					<ToggleControl
+						__nextHasNoMarginBottom
+						label="Fill the screen"
+						help="The panel covers the whole screen, with square corners."
+						checked={ design.fill }
+						onChange={ ( v ) => updateDesign( { fill: v } ) }
+					/>
 				</div>
 
 				<DndContext
@@ -512,11 +638,11 @@ export function TemplateBuilder( {
 							layout={ layout }
 							design={ design }
 							onResize={ updateDesign }
-						>
-							{ regions.map( ( r ) => (
+							renderRegion={ ( r, style ) => (
 								<RegionBox
 									key={ r }
 									region={ r }
+									style={ style }
 									selected={ selectedRegion === r }
 									onSelect={ () => setSelectedRegion( r ) }
 									items={ placements[ r ] ?? [] }
@@ -527,8 +653,8 @@ export function TemplateBuilder( {
 										setOptions( r, i, o )
 									}
 								/>
-							) ) }
-						</RegionGrid>
+							) }
+						/>
 					</div>
 					<DragOverlay>
 						{ dragLabel ? (
@@ -559,14 +685,30 @@ function RegionGrid( {
 	layout,
 	design,
 	onResize,
-	children,
+	renderRegion,
 }: {
 	layout: LayoutId;
 	design: TemplateDesign;
 	onResize: ( patch: Partial< TemplateDesign > ) => void;
-	children: React.ReactNode;
+	renderRegion: (
+		region: string,
+		style?: React.CSSProperties
+	) => React.ReactNode;
 } ) {
 	const ref = useRef< HTMLDivElement | null >( null );
+	if ( layout === 'custom' ) {
+		return (
+			<CustomRegionGrid
+				rows={
+					design.rows.length
+						? design.rows
+						: [ { h: 100, cols: [ 100 ] } ]
+				}
+				onResize={ ( rows ) => onResize( { rows } ) }
+				renderRegion={ renderRegion }
+			/>
+		);
+	}
 	const style = gridStyle( layout, design );
 	const { col, row } = design;
 
@@ -620,7 +762,9 @@ function RegionGrid( {
 
 	return (
 		<div className="wots-regions" ref={ ref } style={ style }>
-			{ children }
+			{ layoutRegions( layout, design ).map( ( r ) =>
+				renderRegion( r, { gridArea: r } )
+			) }
 			{ layout !== 'full' && (
 				<>
 					<button
@@ -643,6 +787,294 @@ function RegionGrid( {
 					/>
 				</>
 			) }
+		</div>
+	);
+}
+
+/**
+ * Move the divider between two neighbours (sizes in percent) so the first
+ * ends at `at` percent of the whole; each keeps at least 5%.
+ */
+function moveDivider( sizes: number[], index: number, at: number ): number[] {
+	const before = sizes.slice( 0, index ).reduce( ( a, b ) => a + b, 0 );
+	const pair = sizes[ index ] + sizes[ index + 1 ];
+	const first = Math.min(
+		pair - 5,
+		Math.max( 5, Math.round( at - before ) )
+	);
+	const next = [ ...sizes ];
+	next[ index ] = first;
+	next[ index + 1 ] = pair - first;
+	return next;
+}
+
+/**
+ * The custom grid in the builder: rows of zones with a draggable divider
+ * between neighbouring zones and between rows. Dividers also take the
+ * arrow keys (Shift for bigger steps).
+ */
+function CustomRegionGrid( {
+	rows,
+	onResize,
+	renderRegion,
+}: {
+	rows: GridRow[];
+	onResize: ( rows: GridRow[] ) => void;
+	renderRegion: (
+		region: string,
+		style?: React.CSSProperties
+	) => React.ReactNode;
+} ) {
+	const ref = useRef< HTMLDivElement | null >( null );
+
+	/** Pointer-drag a divider; `measure` gives the percent along its axis. */
+	const drag =
+		(
+			measure: ( ev: PointerEvent, target: HTMLElement ) => number,
+			apply: ( at: number ) => void
+		) =>
+		( e: React.PointerEvent< HTMLElement > ) => {
+			e.preventDefault();
+			const target = e.currentTarget;
+			target.setPointerCapture( e.pointerId );
+			const move = ( ev: PointerEvent ) => apply( measure( ev, target ) );
+			const up = () => {
+				target.removeEventListener( 'pointermove', move );
+				target.removeEventListener( 'pointerup', up );
+			};
+			target.addEventListener( 'pointermove', move );
+			target.addEventListener( 'pointerup', up );
+		};
+
+	const keys =
+		(
+			back: string,
+			fwd: string,
+			current: number,
+			apply: ( at: number ) => void
+		) =>
+		( e: React.KeyboardEvent< HTMLElement > ) => {
+			if ( e.key !== back && e.key !== fwd ) {
+				return;
+			}
+			e.preventDefault();
+			apply(
+				current + ( e.shiftKey ? 5 : 1 ) * ( e.key === fwd ? 1 : -1 )
+			);
+		};
+
+	const setRowHeights = ( i: number, at: number ) =>
+		onResize(
+			( () => {
+				const h = moveDivider(
+					rows.map( ( r ) => r.h ),
+					i,
+					at
+				);
+				return rows.map( ( r, k ) => ( { ...r, h: h[ k ] } ) );
+			} )()
+		);
+
+	const setColWidths = ( r: number, i: number, at: number ) =>
+		onResize(
+			rows.map( ( row, k ) =>
+				k === r ? { ...row, cols: moveDivider( row.cols, i, at ) } : row
+			)
+		);
+
+	const edge = ( sizes: number[], i: number ) =>
+		sizes.slice( 0, i + 1 ).reduce( ( a, b ) => a + b, 0 );
+
+	return (
+		<div className="wots-regions is-custom" ref={ ref }>
+			{ rows.map( ( row, r ) => (
+				<Fragment key={ r }>
+					<div
+						className="wots-regions__row"
+						style={ { flex: `${ row.h } 1 0` } }
+					>
+						{ row.cols.map( ( w, c ) => (
+							<Fragment key={ c }>
+								{ renderRegion( `r${ r + 1 }c${ c + 1 }`, {
+									flex: `${ w } 1 0`,
+								} ) }
+								{ c < row.cols.length - 1 && (
+									<button
+										type="button"
+										className="wots-divider is-col"
+										aria-label={ `Row ${ r + 1 }: divider after zone ${ c + 1 }, ${ edge( row.cols, c ) }%. Use arrow keys to resize.` }
+										title="Drag to resize these zones"
+										onPointerDown={ drag(
+											( ev, t ) => {
+												const box = (
+													t.parentElement as HTMLElement
+												 ).getBoundingClientRect();
+												return (
+													( ( ev.clientX -
+														box.left ) /
+														box.width ) *
+													100
+												);
+											},
+											( at ) => setColWidths( r, c, at )
+										) }
+										onKeyDown={ keys(
+											'ArrowLeft',
+											'ArrowRight',
+											edge( row.cols, c ),
+											( at ) => setColWidths( r, c, at )
+										) }
+									/>
+								) }
+							</Fragment>
+						) ) }
+					</div>
+					{ r < rows.length - 1 && (
+						<button
+							type="button"
+							className="wots-divider is-row"
+							aria-label={ `Divider after row ${ r + 1 }, ${ edge(
+								rows.map( ( x ) => x.h ),
+								r
+							) }%. Use arrow keys to resize.` }
+							title="Drag to resize these rows"
+							onPointerDown={ drag(
+								( ev ) => {
+									const box =
+										ref.current?.getBoundingClientRect();
+									return box
+										? ( ( ev.clientY - box.top ) /
+												box.height ) *
+												100
+										: 0;
+								},
+								( at ) => setRowHeights( r, at )
+							) }
+							onKeyDown={ keys(
+								'ArrowUp',
+								'ArrowDown',
+								edge(
+									rows.map( ( x ) => x.h ),
+									r
+								),
+								( at ) => setRowHeights( r, at )
+							) }
+						/>
+					) }
+				</Fragment>
+			) ) }
+		</div>
+	);
+}
+
+/**
+ * Rows and zones of the custom grid: add or remove rows, set how many
+ * zones each row has (up to 4 × 4), and save the arrangement by name.
+ */
+function GridEditor( {
+	rows,
+	onChange,
+	onSave,
+}: {
+	rows: GridRow[];
+	onChange: ( rows: GridRow[] ) => void;
+	onSave: ( name: string ) => Promise< unknown >;
+} ) {
+	const [ name, setName ] = useState( '' );
+	const [ savedNote, setSavedNote ] = useState( '' );
+
+	const setCount = ( r: number, count: number ) =>
+		onChange(
+			rows.map( ( row, k ) =>
+				k === r ? { ...row, cols: evenSplit( count ) } : row
+			)
+		);
+	const addRow = () => {
+		const h = evenSplit( rows.length + 1 );
+		onChange( [
+			...rows.map( ( row, k ) => ( { ...row, h: h[ k ] } ) ),
+			{ h: h[ rows.length ], cols: [ 100 ] },
+		] );
+	};
+	const removeRow = ( r: number ) => {
+		const left = rows.filter( ( _, k ) => k !== r );
+		const h = evenSplit( left.length );
+		onChange( left.map( ( row, k ) => ( { ...row, h: h[ k ] } ) ) );
+	};
+
+	return (
+		<div className="wots-grid-editor">
+			<h3 className="wots-builder__subhead">Grid</h3>
+			<ol className="wots-grid-editor__rows">
+				{ rows.map( ( row, r ) => (
+					<li key={ r }>
+						<span>Row { r + 1 }</span>
+						<Button
+							size="small"
+							icon="minus"
+							label={ `Fewer zones in row ${ r + 1 }` }
+							disabled={ row.cols.length <= 1 }
+							onClick={ () => setCount( r, row.cols.length - 1 ) }
+						/>
+						<span className="wots-grid-editor__count">
+							{ row.cols.length } zone
+							{ row.cols.length === 1 ? '' : 's' }
+						</span>
+						<Button
+							size="small"
+							icon="plus"
+							label={ `More zones in row ${ r + 1 }` }
+							disabled={ row.cols.length >= MAX_COLS }
+							onClick={ () => setCount( r, row.cols.length + 1 ) }
+						/>
+						<Button
+							size="small"
+							icon="no-alt"
+							label={ `Remove row ${ r + 1 }` }
+							disabled={ rows.length <= 1 }
+							onClick={ () => removeRow( r ) }
+						/>
+					</li>
+				) ) }
+			</ol>
+			<Button
+				variant="secondary"
+				size="small"
+				disabled={ rows.length >= MAX_ROWS }
+				onClick={ addRow }
+			>
+				Add row
+			</Button>
+			<p className="wots-hint">
+				Drag the dividers between zones to resize them. Elements in a
+				removed zone move to the first zone.
+			</p>
+			<div className="wots-grid-editor__save">
+				<TextControl
+					__next40pxDefaultSize
+					__nextHasNoMarginBottom
+					label="Save this grid as a layout"
+					placeholder="e.g. Banner + 3 columns"
+					value={ name }
+					onChange={ ( v ) => {
+						setName( v );
+						setSavedNote( '' );
+					} }
+				/>
+				<Button
+					variant="secondary"
+					disabled={ ! name.trim() }
+					onClick={ () =>
+						onSave( name.trim() ).then( () => {
+							setSavedNote( `Saved “${ name.trim() }”.` );
+							setName( '' );
+						} )
+					}
+				>
+					Save layout
+				</Button>
+			</div>
+			{ savedNote && <p className="wots-subtle">{ savedNote }</p> }
 		</div>
 	);
 }
@@ -681,6 +1113,7 @@ function PaletteChip( {
 
 function RegionBox( {
 	region,
+	style,
 	selected,
 	onSelect,
 	items,
@@ -690,6 +1123,7 @@ function RegionBox( {
 	onOptions,
 }: {
 	region: string;
+	style?: React.CSSProperties;
 	selected: boolean;
 	onSelect: () => void;
 	items: ElementPlacement[];
@@ -713,7 +1147,7 @@ function RegionBox( {
 		<div
 			ref={ setNodeRef }
 			className={ `wots-region${ selected ? ' is-selected' : '' }${ isOver ? ' is-over' : '' }` }
-			style={ { gridArea: region } }
+			style={ style }
 			onClick={ ( e ) => {
 				// Clicks on placed elements and their buttons don't select.
 				if ( ! ( e.target as HTMLElement ).closest( '.wots-placed' ) ) {
@@ -728,7 +1162,7 @@ function RegionBox( {
 				title="Select this region, then click elements to add them here"
 				onClick={ onSelect }
 			>
-				{ REGION_LABELS[ region ] ?? region }
+				{ regionLabel( region ) }
 			</button>
 			<SortableContext
 				items={ ids }
@@ -1048,6 +1482,7 @@ function TemplatePreview( {
 							}
 							wide
 							contentKey="preview"
+							design={ design }
 						>
 							<TemplateSlide
 								template={ template }

@@ -1,11 +1,8 @@
 import { Button, SelectControl } from '@wordpress/components';
 import { useState } from '@wordpress/element';
-import {
-	REGION_LABELS,
-	TEMPLATE_LAYOUTS,
-	gridStyle,
-} from '../shared/templates';
+import { TEMPLATE_LAYOUTS } from '../shared/templates';
 import { DEFAULT_DESIGN } from '../shared/types';
+import { LayoutThumb } from './LayoutThumb';
 import type { DataSourceInfo, TemplateRecord, TemplateSummary } from './api';
 import { TemplateBuilder } from './TemplateBuilder';
 
@@ -193,21 +190,11 @@ export function TemplatesScreen( {
 							return (
 								<tr key={ t.id }>
 									<td className="wots-col-thumb">
-										<span
-											className="wots-layout-thumb is-small"
-											style={ gridStyle(
-												t.layout,
-												t.design
-											) }
-										>
-											{ layout.regions.map( ( r ) => (
-												<span
-													key={ r }
-													style={ { gridArea: r } }
-													title={ REGION_LABELS[ r ] }
-												/>
-											) ) }
-										</span>
+										<LayoutThumb
+											small
+											layout={ t.layout }
+											design={ t.design }
+										/>
 									</td>
 									<td>
 										<button
@@ -228,7 +215,18 @@ export function TemplatesScreen( {
 											{ t.title || '(untitled)' }
 										</button>
 										<div className="wots-subtle">
-											{ layout.label }
+											{ t.layout === 'custom'
+												? `Custom grid · ${
+														t.design?.rows
+															?.length ?? 1
+													} row${
+														( t.design?.rows
+															?.length ?? 1 ) ===
+														1
+															? ''
+															: 's'
+													}`
+												: layout.label }
 										</div>
 									</td>
 									<td>{ t.source_label }</td>

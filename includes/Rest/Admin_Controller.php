@@ -171,6 +171,43 @@ final class Admin_Controller {
 
 		register_rest_route(
 			$ns,
+			'/layouts',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => static fn() => new \WP_REST_Response( Templates::saved_layouts() ),
+					'permission_callback' => $perm,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => static fn( \WP_REST_Request $r ) => new \WP_REST_Response( Templates::save_layout( (string) $r['name'], $r['rows'] ) ),
+					'permission_callback' => $perm,
+					'args'                => array(
+						'name' => array(
+							'type'     => 'string',
+							'required' => true,
+						),
+						'rows' => array(
+							'type'     => 'array',
+							'required' => true,
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/layouts/(?P<id>[a-z0-9]+)',
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => static fn( \WP_REST_Request $r ) => new \WP_REST_Response( Templates::delete_layout( (string) $r['id'] ) ),
+				'permission_callback' => $perm,
+			)
+		);
+
+		register_rest_route(
+			$ns,
 			'/templates',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
