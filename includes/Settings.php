@@ -26,6 +26,9 @@ final class Settings {
 			// Shape of the screen. Everything is laid out on a canvas of
 			// this shape and scaled to fit the display.
 			'aspect'                 => '16:9',
+			// Hide unapproved / not-started / ended Community Board postings
+			// from the public site's lists (Board_Visibility).
+			'board_visibility'       => true,
 		);
 	}
 
@@ -98,6 +101,9 @@ final class Settings {
 			if ( isset( $input[ $key ] ) ) {
 				$clean[ $key ] = max( 0, min( 5000, (int) $input[ $key ] ) );
 			}
+		}
+		if ( isset( $input['board_visibility'] ) ) {
+			$clean['board_visibility'] = (bool) $input['board_visibility'];
 		}
 		if ( isset( $input['aspect'] ) && isset( self::ASPECTS[ $input['aspect'] ] ) ) {
 			$clean['aspect'] = $input['aspect'];

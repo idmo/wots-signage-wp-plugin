@@ -28,6 +28,7 @@ final class Plugin {
 		Import_Export::register();
 		Updater::boot();
 		Instagram::register();
+		Board_Visibility::register();
 
 		add_action( 'admin_menu', array( Admin_Menu::class, 'register' ) );
 		Admin_Menu::register_handlers();

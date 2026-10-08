@@ -274,6 +274,19 @@ final class Admin_Menu {
 					</tr>
 				</table>
 				<p class="description">Categories can override the default duration (Signage → Categories).</p>
+
+				<h2>Community Board on your website</h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row">Postings</th>
+						<td>
+							<input type="hidden" name="board_visibility" value="0">
+							<label><input type="checkbox" name="board_visibility" value="1" <?php checked( ! empty( $s['board_visibility'] ) ); ?>>
+								Behave like events: show only approved postings within their dates</label>
+							<p class="description">Lists, search, and feeds leave out postings that aren't approved, haven't started, or have ended. An ended posting's own page still works, with a "This posting has ended" note. Needs the post type to be public in Pods.</p>
+						</td>
+					</tr>
+				</table>
 				<?php submit_button( 'Save settings' ); ?>
 			</form>
 
@@ -287,7 +300,7 @@ final class Admin_Menu {
 			wp_die( 'Not allowed.' );
 		}
 		check_admin_referer( 'wots_signage_save_settings' );
-		$fields = array( 'aspect', 'poll_interval', 'default_image_duration', 'default_item_duration', 'default_video_duration', 'brand_color', 'block_transition', 'transition_ms', 'content_animation', 'content_animation_ms' );
+		$fields = array( 'aspect', 'board_visibility', 'poll_interval', 'default_image_duration', 'default_item_duration', 'default_video_duration', 'brand_color', 'block_transition', 'transition_ms', 'content_animation', 'content_animation_ms' );
 		$input  = array();
 		foreach ( $fields as $field ) {
 			if ( isset( $_POST[ $field ] ) ) {

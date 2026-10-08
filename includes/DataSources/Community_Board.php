@@ -38,6 +38,33 @@ final class Community_Board implements Data_Source, Filterable, Pickable {
 		);
 	}
 
+	public const VISIBLE    = 'visible';
+	public const UNAPPROVED = 'unapproved';
+	public const SCHEDULED  = 'scheduled';
+	public const ENDED      = 'ended';
+
+	/**
+	 * Where a posting stands right now: not approved yet, not started yet,
+	 * ended, or visible. Shared by the TV and the public site
+	 * (Board_Visibility). A bare end date runs through the end of that day.
+	 */
+	public static function status( int $post_id, ?int $now = null ): string {
+		$f   = self::fields();
+		$now = $now ?? time();
+		if ( '' !== $f['approved'] && ! Helpers::truthy( Helpers::meta( $post_id, $f['approved'] ) ) ) {
+			return self::UNAPPROVED;
+		}
+		$starts = Helpers::local_timestamp( Helpers::meta( $post_id, $f['start_date'] ) );
+		if ( $starts && $starts > $now ) {
+			return self::SCHEDULED;
+		}
+		$ends = Helpers::local_timestamp( Helpers::meta( $post_id, $f['end_date'] ), true );
+		if ( $ends && $ends < $now ) {
+			return self::ENDED;
+		}
+		return self::VISIBLE;
+	}
+
 	public function key(): string {
 		return 'community_board';
 	}
@@ -101,14 +128,10 @@ final class Community_Board implements Data_Source, Filterable, Pickable {
 
 		$items = array();
 		foreach ( $posts as $post ) {
-			if ( '' !== $f['approved'] && ! Helpers::truthy( Helpers::meta( $post->ID, $f['approved'] ) ) ) {
+			if ( self::VISIBLE !== self::status( $post->ID, $now ) ) {
 				continue;
 			}
-			$starts = Helpers::local_timestamp( Helpers::meta( $post->ID, $f['start_date'] ) );
-			$ends   = Helpers::local_timestamp( Helpers::meta( $post->ID, $f['end_date'] ), true );
-			if ( ( $starts && $starts > $now ) || ( $ends && $ends < $now ) ) {
-				continue;
-			}
+			$ends = Helpers::local_timestamp( Helpers::meta( $post->ID, $f['end_date'] ), true );
 			if ( $filter && ! Helpers::matches_terms( $post->ID, $filter ) ) {
 				continue;
 			}
