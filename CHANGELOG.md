@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0 (2026-10-08)
+
+- Community Board postings behave like events on the public site: lists, search, feeds, the sitemap, and Query Loop blocks only show approved postings inside their dates. An ended posting's own page still works with a "This posting has ended" note; unapproved postings return "not found" to visitors. On by default; turn it off in Signage → Settings.
+
 ## 0.6.1 (2026-10-05)
 
 - Fixed: "Could not determine if updates are available … GitHub API error 403" on the Plugins screen. Update checks now read a small file attached to each release instead of calling the GitHub API, which shared hosts like Pressable can run out of.
