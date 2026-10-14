@@ -218,6 +218,8 @@ export function BlockEditor( {
 			onRequestClose={ onClose }
 			className="wots-block-editor"
 			size="medium"
+			// A stray click outside shouldn't throw away the form.
+			shouldCloseOnClickOutside={ false }
 		>
 			{ error && (
 				<Notice status="error" isDismissible={ false }>

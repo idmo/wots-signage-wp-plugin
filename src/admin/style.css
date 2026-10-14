@@ -1456,3 +1456,16 @@ button.wots-region__label:focus-visible {
 	margin-left: -1px;
 	background: #d63638;
 }
+
+/* Modal buttons stay pinned to the bottom while the fields scroll. */
+.components-modal__content .wots-modal-actions,
+.wots-block-editor .components-modal__content > div > .wots-modal-actions {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	margin: 24px -32px -32px;
+	padding: 16px 32px;
+	background: #fff;
+	box-shadow: 0 -1px 0 #dcdcde, 0 -6px 12px -8px rgba(0, 0, 0, 0.12);
+	border-top: 0;
+}

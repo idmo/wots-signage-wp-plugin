@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Dialog buttons (Create block, Save, Cancel…) stay pinned to the bottom of the dialog while its fields scroll, so they can't be missed. Clicking outside the block editor no longer closes it and loses your changes; use Cancel or ×.
+
 ## 0.8.0 (2026-10-14)
 
 - **Timeline** (new first tab) replaces "On the TV". The TV plays it top to bottom, then repeats. It holds shows, single blocks (a video, an image slideshow…), and **breaks**: a still image such as artwork or a logo, shown for a set number of seconds with no block needed. Drag to reorder.
