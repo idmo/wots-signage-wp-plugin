@@ -487,3 +487,72 @@ export async function getMedia( id: number ): Promise< MediaInfo | null > {
 		return null;
 	}
 }
+
+// --- Timeline (0.8) ---------------------------------------------------------
+
+export type FitMode = 'cover' | 'contain' | 'contain-blur';
+
+/** A named time: days of the week, an optional time span and date range. */
+export interface Period {
+	id: string;
+	name: string;
+	/** 0 = Sunday … 6 = Saturday. */
+	days: number[];
+	/** "HH:MM", or '' (with end '') for all day. */
+	start: string;
+	end: string;
+	/** "Y-m-d" or ''. */
+	from: string;
+	until: string;
+	/** From the server: on right now. */
+	active?: boolean;
+	/** From the server: [start, end) minutes per weekday. */
+	week?: Array< Array< [ number, number ] > >;
+}
+
+export interface TimelineItem {
+	id: string;
+	kind: 'show' | 'block' | 'break';
+	show_id?: number;
+	block_id?: number;
+	image_id?: number;
+	seconds?: number;
+	fit?: FitMode;
+	label?: string;
+	/** Period IDs; empty = always plays. */
+	periods: string[];
+	// From the server, for display.
+	title?: string;
+	detail?: string;
+	thumb?: string | null;
+	active?: boolean;
+}
+
+export interface TimelineData {
+	items: TimelineItem[];
+	periods: Period[];
+	now: { day: number; minutes: number };
+}
+
+export const getTimeline = () =>
+	api< TimelineData >( { path: `${ NS }/timeline` } );
+
+export const saveTimeline = ( items: TimelineItem[] ) =>
+	api< TimelineData >( {
+		path: `${ NS }/timeline`,
+		method: 'PUT',
+		data: {
+			items: items.map(
+				( { title, detail, thumb, active, ...rest } ) => rest
+			),
+		},
+	} );
+
+export const savePeriods = ( periods: Period[] ) =>
+	api< TimelineData >( {
+		path: `${ NS }/periods`,
+		method: 'PUT',
+		data: {
+			periods: periods.map( ( { active, week, ...rest } ) => rest ),
+		},
+	} );

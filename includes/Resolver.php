@@ -20,30 +20,73 @@ final class Resolver {
 	public const FIT_MODES = array( 'cover', 'contain', 'contain-blur' );
 
 	/**
-	 * The full playlist: every show in the TV lineup, back to back.
+	 * The full playlist: the timeline's items that are on right now, in
+	 * order. Shows expand to their blocks; breaks are a still image.
 	 */
 	public static function playlist(): array {
 		// Read the version first: if a time boundary just passed, this bumps
 		// it, and the payload below is resolved against the new state.
 		$version    = Version::current();
-		$lineup     = Sequences::lineup();
 		$boundaries = array( Schedule::next_midnight() );
 		$items      = array();
 		$today      = Schedule::today();
+		$periods    = Periods::by_id();
+		$now        = time();
+		$lineup     = array();
 
-		foreach ( $lineup as $sequence_id ) {
-			foreach ( Sequences::items( $sequence_id ) as $position => $entry ) {
-				foreach ( self::resolve_block( (int) $entry['block_id'], $today, $boundaries ) as $item ) {
-					// Unique even when the same block appears twice in a
-					// show, or in two shows.
-					$prefix        = $sequence_id . '.' . $position . ':';
-					$item['key']   = $prefix . $item['key'];
-					$item['group'] = $prefix . $item['group'];
-					$item['show']  = $sequence_id;
-					$items[]       = $item;
-				}
-			}
+		$next_period = Timeline::next_change( $now );
+		if ( $next_period ) {
+			$boundaries[] = $next_period;
 		}
+
+		foreach ( Timeline::items() as $entry ) {
+			if ( ! Timeline::item_active( $entry, $periods, $now ) ) {
+				continue;
+			}
+			$prefix = 't' . $entry['id'] . '.';
+			$expand = array();
+			switch ( $entry['kind'] ) {
+				case 'show':
+					$lineup[] = $entry['show_id'];
+					foreach ( Sequences::items( $entry['show_id'] ) as $position => $block ) {
+						foreach ( self::resolve_block( (int) $block['block_id'], $today, $boundaries ) as $item ) {
+							$item['key']   = $prefix . $position . ':' . $item['key'];
+							$item['group'] = $prefix . $position . ':' . $item['group'];
+							$item['show']  = $entry['show_id'];
+							$expand[]      = $item;
+						}
+					}
+					break;
+				case 'block':
+					foreach ( self::resolve_block( $entry['block_id'], $today, $boundaries ) as $item ) {
+						$item['key']   = $prefix . $item['key'];
+						$item['group'] = $prefix . $item['group'];
+						$expand[]      = $item;
+					}
+					break;
+				case 'break':
+					$image = Media::image( $entry['image_id'], 'full' );
+					if ( $image ) {
+						$expand[] = array(
+							'key'        => $prefix . 'break',
+							'group'      => $prefix . 'break',
+							'block_id'   => 0,
+							'block_name' => '' !== $entry['label'] ? $entry['label'] : 'Break',
+							'transition' => array(
+								'type' => (string) Settings::get( 'block_transition' ),
+								'ms'   => (int) Settings::get( 'transition_ms' ),
+							),
+							'type'       => 'image',
+							'duration'   => $entry['seconds'],
+							'fit'        => $entry['fit'],
+							'image'      => $image,
+						);
+					}
+					break;
+			}
+			array_push( $items, ...$expand );
+		}
+		$lineup = array_values( array_unique( $lineup ) );
 
 		$now    = time();
 		$future = array_filter( $boundaries, static fn( $t ) => $t > $now );

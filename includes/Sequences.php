@@ -20,6 +20,20 @@ final class Sequences {
 	 * @return int[]
 	 */
 	public static function lineup( bool $create = false ): array {
+		// Since 0.8 the timeline decides what plays; shows on it are the
+		// "lineup" for anything that still asks.
+		if ( is_array( get_option( Timeline::OPTION, null ) ) ) {
+			return Timeline::show_ids();
+		}
+		return self::legacy_lineup( $create );
+	}
+
+	/**
+	 * The pre-0.8 lineup (seeds the timeline on first use).
+	 *
+	 * @return int[]
+	 */
+	public static function legacy_lineup( bool $create = false ): array {
 		$saved = get_option( self::LINEUP_OPTION, null );
 		if ( is_array( $saved ) ) {
 			return self::sanitize_lineup( $saved );
@@ -51,6 +65,7 @@ final class Sequences {
 	 */
 	public static function save_lineup( array $ids ): array {
 		$clean = self::sanitize_lineup( $ids );
+		Timeline::set_shows( $clean );
 		update_option( self::LINEUP_OPTION, $clean, false );
 		// Keep the old single-show option pointing at the first show for
 		// anything that still reads it.
@@ -206,6 +221,7 @@ final class Sequences {
 	 * Drop a deleted or trashed show from the lineup.
 	 */
 	public static function forget( int $post_id ): void {
+		Timeline::forget( $post_id );
 		if ( PostTypes::SEQUENCE !== get_post_type( $post_id ) ) {
 			return;
 		}

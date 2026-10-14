@@ -22,7 +22,9 @@ Digital signage for Word on the Street Books. See `docs/signage-plugin-prd.md` f
 
 **Templates tab:** drag a data source's elements into one of four preset layouts or a **custom grid** (up to 4 rows of up to 4 zones, e.g. a banner over three columns; drag the dividers to resize; save a grid by name to reuse it in other templates), set the panel padding and the space between zones (both can be 0) or make the panel fill the screen, resize the regions (drag the handles or use the sliders), set size, alignment, and image fit, add your own **Text** (e.g. "Scan for details"), and see a live preview built from a real event, posting, or book. A template can show **each item's own image full-screen** behind the panel (an event's featured image, a book's cover), darkened to keep text readable; **Starter: image background** makes one in a click. A block uses its own template, otherwise its category's default template, otherwise the built-in layout.
 
-**Shows:** several shows; New, Rename, Duplicate, Delete. **On the TV** lists every show: tick the ones to play and drag them into order. The TV plays them back to back, then repeats. Changes apply at its next check.
+**Timeline:** what the TV plays, top to bottom, then repeats. Add shows, single blocks (a video, an image slideshow), or **breaks** (a still image, such as artwork or a logo, for a set number of seconds). Drag to reorder. **Periods** are named times (days of the week, a time span that may run past midnight, optional start and end dates). Tag an item with periods under **When…** and it plays only then; untagged items always play. **Week at a glance** shows when each item plays. The TV switches at period boundaries on its own; other changes apply at its next check.
+
+**Shows:** several shows; New, Rename, Duplicate, Delete. **Play on the TV** adds a show to the timeline or takes it off.
 
 **Block preview:** the eye button on a block (or **Preview** in the block editor, which includes unsaved changes) plays just that block with the real player, ignoring its dates, so you can check the layout without waiting for the whole show.
 
@@ -142,9 +144,11 @@ includes/               PHP (namespace WOTS\Signage, one class per file)
   Plugin.php            Wires hooks together
   PostTypes.php         Blocks, shows, templates, categories + their meta
   Schedule.php          Active / scheduled / expired, in the site timezone
-  Resolver.php          TV lineup -> eligible blocks -> playlist items
+  Resolver.php          Timeline -> eligible blocks -> playlist items
+  Timeline.php          The TV timeline: shows, blocks, breaks + their periods
+  Periods.php           Named weekly time spans (overnight, date ranges)
   Version.php           Playlist version token + what invalidates it
-  Sequences.php         Shows, their ordered items, and the TV lineup
+  Sequences.php         Shows and their ordered items (pre-0.8 lineup)
   Block_Preview.php     Plays one block (with unsaved edits) for the admin
   Blocks.php            Block summaries for the admin library
   Media.php             Attachment helpers, signage_169 image size

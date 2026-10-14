@@ -20,10 +20,13 @@ import {
 	getShows,
 	getStatus,
 	getTemplates,
+	getTimeline,
 	refreshNow,
 	renameShow,
 	saveLineup,
+	savePeriods,
 	saveShowItems,
+	saveTimeline,
 	type AdminStatus,
 	type BlockSummary,
 	type Category,
@@ -32,17 +35,21 @@ import {
 	type ShowItem,
 	type ShowSummary,
 	type TemplateSummary,
+	type TimelineData,
+	type TimelineItem,
+	type Period,
 } from './api';
 import { BlockEditor } from './BlockEditor';
 import { BlockPreview } from './BlockPreview';
 import { BlocksScreen } from './BlocksScreen';
 import { playerHealth } from './common';
 import { ImportExportScreen } from './ImportExportScreen';
-import { LineupPanel, lineupIds } from './LineupPanel';
+import { lineupIds } from './LineupPanel';
 import { PreviewScreen } from './PreviewScreen';
 import { ShowScreen } from './ShowScreen';
 import { ShowsBar } from './ShowsBar';
 import { TemplatesScreen } from './TemplatesScreen';
+import { TimelineScreen } from './TimelineScreen';
 import { setFollowerFetcher } from '../shared/live';
 import './style.css';
 
@@ -63,6 +70,10 @@ function App() {
 	const [ savingShow, setSavingShow ] = useState( false );
 	const [ busy, setBusy ] = useState( false );
 	const [ refreshing, setRefreshing ] = useState( false );
+	const [ timeline, setTimeline ] = useState< TimelineData | null >( null );
+	const [ savingTimeline, setSavingTimeline ] = useState( false );
+	const [ tab, setTab ] = useState( { name: 'timeline', n: 0 } );
+	const timelineQueue = useRef< Promise< unknown > >( Promise.resolve() );
 	const saveQueue = useRef< Promise< unknown > >( Promise.resolve() );
 
 	const fail = ( e: unknown ) =>
@@ -74,6 +85,10 @@ function App() {
 	);
 	const loadShows = useCallback(
 		() => getShows().then( setShows ).catch( fail ),
+		[]
+	);
+	const loadTimeline = useCallback(
+		() => getTimeline().then( setTimeline ).catch( fail ),
 		[]
 	);
 	const loadTemplates = useCallback(
@@ -89,8 +104,10 @@ function App() {
 			getCategories(),
 			getDataSources(),
 			getTemplates(),
+			getTimeline(),
 		] )
-			.then( ( [ s, ss, b, c, d, t ] ) => {
+			.then( ( [ s, ss, b, c, d, t, tl ] ) => {
+				setTimeline( tl );
 				setShow( s );
 				setShows( ss );
 				setBlocks( b );
@@ -136,7 +153,7 @@ function App() {
 		try {
 			await saveQueue.current;
 			await action();
-			await loadShows();
+			await Promise.all( [ loadShows(), loadTimeline() ] );
 			if ( openId ) {
 				setShow( await getShowById( openId ) );
 			}
@@ -153,6 +170,41 @@ function App() {
 		getShowById( id ).then( setShow ).catch( fail );
 	};
 
+	/** Optimistic timeline save; saves run one at a time in order. */
+	const updateTimeline = ( items: TimelineItem[] ) => {
+		if ( ! timeline ) {
+			return;
+		}
+		setTimeline( { ...timeline, items } );
+		setSavingTimeline( true );
+		timelineQueue.current = timelineQueue.current
+			.then( () => saveTimeline( items ) )
+			.then( ( res ) => {
+				setTimeline( res );
+				return Promise.all( [ loadShows(), loadBlocks() ] );
+			} )
+			.catch( ( e ) => {
+				fail( e );
+				loadTimeline();
+			} )
+			.finally( () => setSavingTimeline( false ) );
+	};
+
+	const updatePeriods = async ( periods: Period[] ) => {
+		await timelineQueue.current;
+		try {
+			setTimeline( await savePeriods( periods ) );
+			setNotice( 'Periods saved.' );
+		} catch ( e ) {
+			fail( e );
+		}
+	};
+
+	const openShow = ( id: number ) => {
+		selectShow( id );
+		setTab( ( t ) => ( { name: 'show', n: t.n + 1 } ) );
+	};
+
 	/** Save the TV lineup; the list updates right away. */
 	const updateLineup = async ( ids: number[] ) => {
 		const before = shows;
@@ -166,6 +218,7 @@ function App() {
 			const res = await saveLineup( ids );
 			setShows( res.shows );
 			loadBlocks();
+			loadTimeline();
 		} catch ( e ) {
 			setShows( before );
 			fail( e );
@@ -178,6 +231,7 @@ function App() {
 		addToShow: boolean
 	) => {
 		setEditing( null );
+		loadTimeline();
 		if ( addToShow && show ) {
 			updateShowItems( [
 				...show.items,
@@ -191,6 +245,7 @@ function App() {
 
 	const onDeleted = ( id: number ) => {
 		setEditing( null );
+		loadTimeline();
 		if ( show && show.items.some( ( i ) => i.block_id === id ) ) {
 			updateShowItems( show.items.filter( ( i ) => i.block_id !== id ) );
 		} else {
@@ -220,9 +275,9 @@ function App() {
 		status?.heartbeat ?? null,
 		status?.now ?? Math.floor( Date.now() / 1000 )
 	);
-	const lineup = lineupIds( shows )
-		.map( ( id ) => shows.find( ( s ) => s.id === id )?.title )
-		.filter( Boolean );
+	const lineup = ( timeline?.items ?? [] )
+		.filter( ( i ) => i.active )
+		.map( ( i ) => i.title );
 
 	return (
 		<div className="wots-signage-admin">
@@ -264,8 +319,11 @@ function App() {
 
 			{ show && (
 				<TabPanel
+					key={ tab.n }
 					className="wots-tabs"
+					initialTabName={ tab.name }
 					tabs={ [
+						{ name: 'timeline', title: 'Timeline' },
 						{ name: 'show', title: 'Shows' },
 						{
 							name: 'blocks',
@@ -276,8 +334,26 @@ function App() {
 						{ name: 'transfer', title: 'Import / Export' },
 					] }
 				>
-					{ ( tab ) => {
-						switch ( tab.name ) {
+					{ ( current ) => {
+						switch ( current.name ) {
+							case 'timeline':
+								return timeline ? (
+									<TimelineScreen
+										data={ timeline }
+										shows={ shows }
+										blocks={ blocks }
+										saving={ savingTimeline }
+										onChange={ updateTimeline }
+										onSavePeriods={ updatePeriods }
+										onEditShow={ openShow }
+										onEditBlock={ ( id ) =>
+											setEditing( { id } )
+										}
+										onPreviewBlock={ setPreviewing }
+									/>
+								) : (
+									<Spinner />
+								);
 							case 'blocks':
 								return (
 									<BlocksScreen
@@ -321,6 +397,7 @@ function App() {
 												loadBlocks(),
 												loadShows(),
 												loadTemplates(),
+												loadTimeline(),
 											] );
 											getCategories().then(
 												setCategories
@@ -331,13 +408,6 @@ function App() {
 							default:
 								return (
 									<>
-										<LineupPanel
-											shows={ shows }
-											currentId={ show.id }
-											busy={ busy }
-											onChange={ updateLineup }
-											onEdit={ selectShow }
-										/>
 										<ShowsBar
 											shows={ shows }
 											currentId={ show.id }

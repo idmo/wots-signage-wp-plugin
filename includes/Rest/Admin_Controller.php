@@ -8,12 +8,14 @@ use WOTS\Signage\DataSources\Filterable;
 use WOTS\Signage\DataSources\Helpers;
 use WOTS\Signage\DataSources\Pickable;
 use WOTS\Signage\DataSources\Registry;
+use WOTS\Signage\Periods;
 use WOTS\Signage\Player_Route;
 use WOTS\Signage\Plugin;
 use WOTS\Signage\PostTypes;
 use WOTS\Signage\Sequences;
 use WOTS\Signage\Settings;
 use WOTS\Signage\Templates;
+use WOTS\Signage\Timeline;
 use WOTS\Signage\Version;
 
 defined( 'ABSPATH' ) || exit;
@@ -53,6 +55,45 @@ final class Admin_Controller {
 					'record' => array(
 						'type'    => array( 'object', 'null' ),
 						'default' => null,
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/timeline',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'timeline' ),
+					'permission_callback' => $perm,
+				),
+				array(
+					'methods'             => 'PUT',
+					'callback'            => array( self::class, 'save_timeline' ),
+					'permission_callback' => $perm,
+					'args'                => array(
+						'items' => array(
+							'type'     => 'array',
+							'required' => true,
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/periods',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( self::class, 'save_periods' ),
+				'permission_callback' => $perm,
+				'args'                => array(
+					'periods' => array(
+						'type'     => 'array',
+						'required' => true,
 					),
 				),
 			)
@@ -406,6 +447,42 @@ final class Admin_Controller {
 	public static function preview_block( \WP_REST_Request $request ): \WP_REST_Response {
 		$record = $request->get_param( 'record' );
 		return new \WP_REST_Response( Block_Preview::playlist( (int) $request->get_param( 'id' ), is_array( $record ) ? $record : null ) );
+	}
+
+	/**
+	 * The timeline with titles and "playing now", the periods, and when
+	 * each period is on in a typical week (for the week view).
+	 */
+	public static function timeline(): \WP_REST_Response {
+		$periods = Periods::all();
+		return new \WP_REST_Response(
+			array(
+				'items'   => Timeline::describe(),
+				'periods' => array_map(
+					static fn( $p ) => $p + array(
+						'active' => Periods::active( $p ),
+						'week'   => Periods::week_spans( $p ),
+					),
+					$periods
+				),
+				'now'     => array(
+					'day'     => (int) wp_date( 'w' ),
+					'minutes' => (int) wp_date( 'G' ) * 60 + (int) wp_date( 'i' ),
+				),
+			)
+		);
+	}
+
+	public static function save_timeline( \WP_REST_Request $request ): \WP_REST_Response {
+		Timeline::save( (array) $request->get_param( 'items' ) );
+		return self::timeline();
+	}
+
+	public static function save_periods( \WP_REST_Request $request ): \WP_REST_Response {
+		Periods::save( (array) $request->get_param( 'periods' ) );
+		// Drop tags pointing at deleted periods.
+		Timeline::save( Timeline::items() );
+		return self::timeline();
 	}
 
 	public static function save_lineup( \WP_REST_Request $request ): \WP_REST_Response {

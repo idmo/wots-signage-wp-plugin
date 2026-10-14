@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Timeline** (new first tab) replaces "On the TV". The TV plays it top to bottom, then repeats. It holds shows, single blocks (a video, an image slideshow…), and **breaks**: a still image such as artwork or a logo, shown for a set number of seconds with no block needed. Drag to reorder.
+- **Periods**: named times made of days of the week, an optional time span (an end before the start runs past midnight), and optional start and end dates. Tag any timeline item with periods via **When…** and it plays only then; untagged items always play. The TV switches on its own when a period starts or ends.
+- **Week at a glance**: when each timeline item plays across the week, with a line at the current time.
+- Your existing lineup carries over as the first timeline items. "Play on the TV" on the Shows tab still works and adds or removes the show on the timeline.
+
 ## 0.7.0 (2026-10-08)
 
 - Community Board postings behave like events on the public site: lists, search, feeds, the sitemap, and Query Loop blocks only show approved postings inside their dates. An ended posting's own page still works with a "This posting has ended" note; unapproved postings return "not found" to visitors. On by default; turn it off in Signage → Settings.

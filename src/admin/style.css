@@ -1253,3 +1253,206 @@ button.wots-region__label:focus-visible {
 .wots-layout-thumb.is-custom > .wots-layout-thumb__row {
 	background: none;
 }
+
+/* Timeline (0.8) */
+.wots-timeline__row {
+	min-height: 48px;
+}
+
+.wots-timeline__row.is-waiting .wots-lineup__name,
+.wots-timeline__row.is-waiting .wots-thumb {
+	opacity: 0.55;
+}
+
+.wots-timeline__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-size: 14px;
+}
+
+.wots-timeline__row.is-show .wots-timeline__icon {
+	background: #2271b1;
+}
+
+.wots-timeline__name {
+	flex-direction: column;
+	gap: 0;
+}
+
+.wots-timeline__chips {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+	max-width: 40%;
+}
+
+.wots-tag {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	line-height: 18px;
+	background: #f0f0f1;
+	color: #3c434a;
+	white-space: nowrap;
+}
+
+.wots-tag.is-on {
+	background: #edfaef;
+	color: #007017;
+}
+
+.wots-tag.is-always {
+	background: transparent;
+	color: #646970;
+	border: 1px dashed #c3c4c7;
+}
+
+.wots-timeline__when {
+	width: 280px;
+	padding: 12px;
+	display: grid;
+	gap: 8px;
+}
+
+.wots-timeline__when .wots-hint {
+	margin: 0;
+}
+
+.wots-timeline__add {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 12px 24px;
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.wots-timeline__add-group {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.wots-timeline__add-group .components-base-control {
+	min-width: 200px;
+}
+
+/* Periods */
+.wots-period {
+	display: grid;
+	grid-template-columns: minmax(140px, 1.4fr) auto repeat(2, minmax(110px, 0.8fr)) repeat(2, minmax(140px, 1fr)) auto;
+	align-items: end;
+	gap: 8px 12px;
+	padding: 10px 0;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.wots-period__days {
+	display: flex;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.wots-period__days legend {
+	padding: 0;
+	margin-bottom: 8px;
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+}
+
+.wots-period__days .components-button {
+	min-width: 38px;
+	justify-content: center;
+	height: 40px;
+}
+
+.wots-period__summary {
+	grid-column: 1 / -1;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font-size: 12px;
+}
+
+.wots-periods__actions {
+	margin-top: 12px;
+}
+
+@media (max-width: 1100px) {
+	.wots-period {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.wots-period__name,
+	.wots-period__days {
+		grid-column: 1 / -1;
+	}
+}
+
+/* Week view */
+.wots-week__grid {
+	display: grid;
+	gap: 4px;
+}
+
+.wots-week__row {
+	display: grid;
+	grid-template-columns: minmax(120px, 200px) repeat(7, 1fr);
+	gap: 4px;
+	align-items: center;
+}
+
+.wots-week__row.is-head span {
+	font-size: 11px;
+	font-weight: 600;
+	color: #646970;
+	text-align: center;
+}
+
+.wots-week__row.is-head .is-today {
+	color: #2271b1;
+}
+
+.wots-week__label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+}
+
+.wots-week__day {
+	position: relative;
+	height: 18px;
+	background: #f0f0f1;
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.wots-week__span {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	background: #2271b1;
+}
+
+.wots-week__span.is-always {
+	background: #8c8f94;
+}
+
+.wots-week__now {
+	position: absolute;
+	top: -2px;
+	bottom: -2px;
+	width: 2px;
+	margin-left: -1px;
+	background: #d63638;
+}

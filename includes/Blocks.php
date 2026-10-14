@@ -24,12 +24,8 @@ final class Blocks {
 			)
 		);
 
-		$live_ids = array();
-		foreach ( Sequences::lineup() as $show_id ) {
-			foreach ( Sequences::items( $show_id ) as $item ) {
-				$live_ids[] = (int) $item['block_id'];
-			}
-		}
+		// On the timeline, directly or through a show (whatever its periods).
+		$live_ids = Timeline::block_ids();
 
 		$today = Schedule::today();
 		return array_map( static fn( \WP_Post $p ) => self::summary( $p, $today, $live_ids ), $posts );
