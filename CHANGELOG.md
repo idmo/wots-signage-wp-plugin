@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 (2026-10-14)
 
 - Dialog buttons (Create block, Save, Cancel…) stay pinned to the bottom of the dialog while its fields scroll, so they can't be missed. Clicking outside the block editor no longer closes it and loses your changes; use Cancel or ×.
 
