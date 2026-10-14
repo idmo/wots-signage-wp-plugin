@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 (2026-10-14)
 
 - **Timeline** (new first tab) replaces "On the TV". The TV plays it top to bottom, then repeats. It holds shows, single blocks (a video, an image slideshow…), and **breaks**: a still image such as artwork or a logo, shown for a set number of seconds with no block needed. Drag to reorder.
 - **Periods**: named times made of days of the week, an optional time span (an end before the start runs past midnight), and optional start and end dates. Tag any timeline item with periods via **When…** and it plays only then; untagged items always play. The TV switches on its own when a period starts or ends.
